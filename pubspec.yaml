@@ -1,0 +1,53 @@
+name: hidra
+description: Secure Private Vault Application
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  url_launcher: ^6.2.5
+#  flutter_windowmanager: ^0.2.0
+  permission_handler: ^11.3.0
+  app_settings: ^5.1.1
+  provider: ^6.0.5
+  video_player: ^2.8.2
+  image_picker: ^1.0.4
+  video_thumbnail: ^0.5.3
+  path_provider: ^2.1.2
+
+  cupertino_icons: ^1.0.8
+  local_auth: ^2.2.0
+  flutter_secure_storage: ^9.0.0
+  shared_preferences: ^2.2.2
+  crypto: ^3.0.2
+  encrypt: ^5.0.1
+
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/onboarding/
+    - assets/icons/
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icons/Hidra_logo.png"
+  adaptive_icon_background: "#050B18"
+
