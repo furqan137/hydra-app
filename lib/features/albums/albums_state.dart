@@ -3,18 +3,14 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/models/album_model.dart';
-import 'albums_controller.dart'; // AlbumViewType enum
+import 'albums_controller.dart';
 
 class AlbumsState extends ChangeNotifier {
-  // ================= DATA =================
-
   List<Album> _albums = [];
   AlbumViewType _viewType = AlbumViewType.list;
 
   List<Album> get albums => _albums;
   AlbumViewType get viewType => _viewType;
-
-  // ================= INIT =================
 
   AlbumsState() {
     _init();
@@ -31,7 +27,11 @@ class AlbumsState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final albumsJson = prefs.getString('albums');
 
-    if (albumsJson == null) return;
+    if (albumsJson == null) {
+      _albums = [];
+      notifyListeners();
+      return;
+    }
 
     final List decoded = jsonDecode(albumsJson);
     _albums = decoded.map((e) => Album.fromJson(e)).toList();
@@ -46,10 +46,16 @@ class AlbumsState extends ChangeNotifier {
     );
   }
 
+  // 🔥 FIX — CALLED AFTER RESTORE
+  Future<void> reloadFromStorage() async {
+    await _loadAlbums();
+  }
+
+  // ================= VIEW MODE =================
+
   Future<void> _loadViewType() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getString('albums_view_type');
-
     if (stored == null) return;
 
     _viewType = AlbumViewType.values.firstWhere(
@@ -84,11 +90,8 @@ class AlbumsState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ================= VIEW MODE =================
-
   void setViewType(AlbumViewType type) {
     if (_viewType == type) return;
-
     _viewType = type;
     _saveViewType();
     notifyListeners();

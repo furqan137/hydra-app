@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../data/models/album_model.dart';
 import 'albums_state.dart';
@@ -18,13 +20,49 @@ enum AlbumViewType {
 }
 
 /// ================= CONTROLLER =================
-/// NOTE:
-/// - This controller manages ALBUMS only
-/// - Media selection belongs to AlbumDetailScreen
+/// Manages album metadata only (NOT album media)
 class AlbumsController {
   final AlbumsState state;
 
-  AlbumsController(this.state);
+  static const String _albumsKey = 'albums';
+
+  AlbumsController(this.state) {
+    loadAlbums();
+  }
+
+  // ================= LOAD / SAVE =================
+
+  Future<void> loadAlbums() async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = prefs.getString(_albumsKey);
+
+    if (jsonStr == null) {
+      state.setAlbums([]);
+      return;
+    }
+
+    try {
+      final List decoded = jsonDecode(jsonStr);
+      final albums = decoded.map((e) => Album.fromJson(e)).toList();
+      state.setAlbums(albums);
+    } catch (e) {
+      debugPrint('❌ Album load error: $e');
+      state.setAlbums([]);
+    }
+  }
+
+  Future<void> _saveAlbums() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _albumsKey,
+      jsonEncode(state.albums.map((a) => a.toJson()).toList()),
+    );
+  }
+
+  /// 🔥 CALL THIS AFTER BACKUP RESTORE
+  Future<void> reloadAfterRestore() async {
+    await loadAlbums();
+  }
 
   // ================= CREATE =================
 
@@ -41,6 +79,7 @@ class AlbumsController {
     );
 
     state.addAlbum(album);
+    _saveAlbums();
   }
 
   // ================= SEARCH =================
@@ -63,21 +102,19 @@ class AlbumsController {
       case AlbumSortType.nameAsc:
         albums.sort((a, b) => a.name.compareTo(b.name));
         break;
-
       case AlbumSortType.nameDesc:
         albums.sort((a, b) => b.name.compareTo(a.name));
         break;
-
       case AlbumSortType.newest:
         albums.sort((a, b) => b.id.compareTo(a.id));
         break;
-
       case AlbumSortType.oldest:
         albums.sort((a, b) => a.id.compareTo(b.id));
         break;
     }
 
     state.setAlbums(albums);
+    _saveAlbums();
   }
 
   // ================= VIEW MODE =================
@@ -98,10 +135,7 @@ class AlbumsController {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text(
-          'Rename Album',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Rename Album', style: TextStyle(color: Colors.white)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -119,10 +153,7 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -136,6 +167,7 @@ class AlbumsController {
               if (newName.isEmpty) return;
 
               _replaceAlbum(album.copyWith(name: newName));
+              _saveAlbums();
               Navigator.pop(context);
             },
             child: const Text('Save'),
@@ -155,10 +187,7 @@ class AlbumsController {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text(
-          'Delete Album',
-          style: TextStyle(color: Colors.white),
-        ),
+        title: const Text('Delete Album', style: TextStyle(color: Colors.white)),
         content: Text(
           'Are you sure you want to delete "${album.name}"?',
           style: const TextStyle(color: Colors.white70),
@@ -166,10 +195,7 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancel',
-              style: TextStyle(color: Colors.white70),
-            ),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -182,6 +208,7 @@ class AlbumsController {
               final updated = [...state.albums]
                 ..removeWhere((a) => a.id == album.id);
               state.setAlbums(updated);
+              _saveAlbums();
               Navigator.pop(context);
             },
             child: const Text('Delete'),
