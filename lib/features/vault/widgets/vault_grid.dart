@@ -25,15 +25,14 @@ class VaultGrid extends StatefulWidget {
 }
 
 class _VaultGridState extends State<VaultGrid> {
-  // Cache thumbnails in-memory
+  /// In-memory thumbnail cache
   final Map<String, String?> _videoThumbnails = {};
 
   // ================= VIDEO THUMBNAIL =================
 
-  Future<String?> _getOrGenerateVideoThumbnail(VaultFile vaultFile) async {
-    final videoPath = vaultFile.file.path;
+  Future<String?> _getOrGenerateVideoThumbnail(VaultFile file) async {
+    final videoPath = file.file.path;
 
-    // Memory cache
     if (_videoThumbnails.containsKey(videoPath)) {
       return _videoThumbnails[videoPath];
     }
@@ -43,7 +42,6 @@ class _VaultGridState extends State<VaultGrid> {
         md5.convert(videoPath.codeUnits).toString() + '.png';
     final thumbPath = '${cacheDir.path}/$thumbName';
 
-    // Disk cache
     if (File(thumbPath).existsSync()) {
       _videoThumbnails[videoPath] = thumbPath;
       return thumbPath;
@@ -76,16 +74,16 @@ class _VaultGridState extends State<VaultGrid> {
       ),
       itemCount: controller.files.length,
       itemBuilder: (_, index) {
-        final vaultFile = controller.files[index];
-        final isSelected = controller.isSelected(vaultFile);
+        final file = controller.files[index];
+        final selected = controller.isSelected(file);
 
         return GestureDetector(
-          onLongPress: () => controller.toggleSelection(vaultFile),
+          onLongPress: () => controller.toggleSelection(file),
           onTap: () {
             if (controller.isSelectionMode) {
-              controller.toggleSelection(vaultFile);
+              controller.toggleSelection(file);
             } else {
-              _openViewer(context, vaultFile);
+              _openViewer(context, index);
             }
           },
           child: ClipRRect(
@@ -93,26 +91,28 @@ class _VaultGridState extends State<VaultGrid> {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                /// IMAGE
-                if (_isImageFile(vaultFile.file.path))
+                /// ================= IMAGE =================
+                if (_isImage(file.file.path))
                   Image.file(
-                    vaultFile.file,
+                    file.file,
                     fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                    const ColoredBox(color: Colors.black),
                   ),
 
-                /// VIDEO
-                if (_isVideoFile(vaultFile.file.path))
+                /// ================= VIDEO =================
+                if (_isVideo(file.file.path))
                   FutureBuilder<String?>(
-                    future: _getOrGenerateVideoThumbnail(vaultFile),
+                    future: _getOrGenerateVideoThumbnail(file),
                     builder: (_, snapshot) {
-                      final thumbPath = snapshot.data;
-                      if (thumbPath != null &&
-                          File(thumbPath).existsSync()) {
+                      final thumb = snapshot.data;
+                      if (thumb != null &&
+                          File(thumb).existsSync()) {
                         return Stack(
                           fit: StackFit.expand,
                           children: [
                             Image.file(
-                              File(thumbPath),
+                              File(thumb),
                               fit: BoxFit.cover,
                             ),
                             const Center(
@@ -141,7 +141,7 @@ class _VaultGridState extends State<VaultGrid> {
                 ),
 
                 /// ✅ SELECTION OVERLAY
-                if (isSelected)
+                if (selected)
                   Container(
                     color: Colors.black.withOpacity(0.35),
                     child: const Center(
@@ -160,6 +160,59 @@ class _VaultGridState extends State<VaultGrid> {
     );
   }
 
+  // ================= VIEWER =================
+
+  void _openViewer(BuildContext context, int index) {
+    final controller = widget.controller;
+    final files = controller.files;
+    final file = files[index];
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          // ================= VIDEO =================
+          if (_isVideo(file.file.path)) {
+            return VaultVideoViewer(
+              file: file,
+
+              /// ✅ DELETE VIDEO CORRECTLY
+              onDelete: () async {
+                await controller.deleteFile(file);
+              },
+            );
+          }
+
+          // ================= IMAGE =================
+          return VaultImageViewer(
+            file: file,
+
+            /// ✅ DELETE IMAGE
+            onDelete: () async {
+              await controller.deleteFile(file);
+            },
+
+            onPrevious: index > 0
+                ? () {
+              Navigator.pop(context);
+              _openViewer(context, index - 1);
+            }
+                : null,
+
+            onNext: index < files.length - 1
+                ? () {
+              Navigator.pop(context);
+              _openViewer(context, index + 1);
+            }
+                : null,
+          );
+        },
+      ),
+    );
+  }
+
+
+
   // ================= HELPERS =================
 
   Widget _videoPlaceholder() {
@@ -175,20 +228,7 @@ class _VaultGridState extends State<VaultGrid> {
     );
   }
 
-  void _openViewer(BuildContext context, VaultFile vaultFile) {
-    final path = vaultFile.file.path.toLowerCase();
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => _isVideoFile(path)
-            ? VaultVideoViewer(file: vaultFile)
-            : VaultImageViewer(file: vaultFile),
-      ),
-    );
-  }
-
-  bool _isImageFile(String path) {
+  bool _isImage(String path) {
     final p = path.toLowerCase();
     return p.endsWith('.jpg') ||
         p.endsWith('.jpeg') ||
@@ -198,7 +238,7 @@ class _VaultGridState extends State<VaultGrid> {
         p.endsWith('.webp');
   }
 
-  bool _isVideoFile(String path) {
+  bool _isVideo(String path) {
     final p = path.toLowerCase();
     return p.endsWith('.mp4') ||
         p.endsWith('.mov') ||

@@ -32,6 +32,12 @@ class AlbumDetailScreen extends StatefulWidget {
 class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final List<AlbumMediaFile> mediaFiles = [];
 
+  final Set<int> _selectedIndexes = {};
+
+  bool get isSelectionMode => _selectedIndexes.isNotEmpty;
+  int get selectedCount => _selectedIndexes.length;
+
+
   // ================= INIT =================
 
   @override
@@ -80,6 +86,37 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         }
       }
     }
+  }
+
+
+  bool isSelected(int index) => _selectedIndexes.contains(index);
+
+  void toggleSelection(int index) {
+    setState(() {
+      if (_selectedIndexes.contains(index)) {
+        _selectedIndexes.remove(index);
+      } else {
+        _selectedIndexes.add(index);
+      }
+    });
+  }
+
+  void clearSelection() {
+    setState(() {
+      _selectedIndexes.clear();
+    });
+  }
+
+  Future<void> _deleteSelected() async {
+    setState(() {
+      final indexes = _selectedIndexes.toList()..sort((a, b) => b.compareTo(a));
+      for (final i in indexes) {
+        mediaFiles.removeAt(i);
+      }
+      _selectedIndexes.clear();
+    });
+
+    await _saveMedia();
   }
 
 
@@ -389,9 +426,39 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 itemCount: mediaFiles.length,
                 itemBuilder: (_, i) {
                   final media = mediaFiles[i];
-                  return AlbumMediaTile(
-                    mediaFile: media,
-                    onTap: () => _openViewer(media, i),
+                  final selected = isSelected(i);
+
+                  return GestureDetector(
+                    onLongPress: () => toggleSelection(i),
+                    onTap: () {
+                      if (isSelectionMode) {
+                        toggleSelection(i);
+                      } else {
+                        _openViewer(media, i);
+                      }
+                    },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        AlbumMediaTile(
+                          mediaFile: media,
+                          onTap: null, // handled above
+                        ),
+
+                        /// ✅ SELECTION OVERLAY
+                        if (selected)
+                          Container(
+                            color: Colors.black.withOpacity(0.35),
+                            child: const Center(
+                              child: Icon(
+                                Icons.check_circle,
+                                color: Color(0xFF0FB9B1),
+                                size: 36,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   );
                 },
               ),
@@ -401,19 +468,24 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       ),
 
       // ================= FAB =================
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: isSelectionMode
+          ? null
+          : FloatingActionButton.extended(
         heroTag: 'album_detail_fab',
         backgroundColor: const Color(0xFF0FB9B1),
         icon: const Icon(Icons.add),
         label: const Text('Add'),
         onPressed: _showAddOptions,
       ),
+
     );
   }
 
   // ================= VIEWER =================
 
   void _openViewer(AlbumMediaFile media, int index) {
+    final files = mediaFiles;
+
     final onDelete = () async {
       setState(() {
         mediaFiles.removeAt(index);
@@ -422,32 +494,40 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
       Navigator.pop(context);
     };
 
-    if (media.type == AlbumMediaType.image) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AlbumImageViewer(
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) {
+          // ================= VIDEO =================
+          if (media.type == AlbumMediaType.video) {
+            return AlbumVideoViewer(
+              file: media,
+              onDelete: onDelete,
+            );
+          }
+
+          // ================= IMAGE =================
+          return AlbumImageViewer(
             file: media,
             onDelete: onDelete,
-            onExport: () {},
-            onMove: () {},
-          ),
-        ),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => AlbumVideoViewer(
-            file: media,
-            onDelete: onDelete,
-            onExport: () {},
-            onMove: () {},
-          ),
-        ),
-      );
-    }
+            onPrevious: index > 0
+                ? () {
+              Navigator.pop(context);
+              _openViewer(files[index - 1], index - 1);
+            }
+                : null,
+            onNext: index < files.length - 1
+                ? () {
+              Navigator.pop(context);
+              _openViewer(files[index + 1], index + 1);
+            }
+                : null,
+          );
+        },
+      ),
+    );
   }
+
 }
 
 bool _isVideo(File file) {

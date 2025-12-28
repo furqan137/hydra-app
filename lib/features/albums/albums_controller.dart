@@ -18,12 +18,13 @@ enum AlbumViewType {
 }
 
 /// ================= CONTROLLER =================
-
+/// NOTE:
+/// - This controller manages ALBUMS only
+/// - Media selection belongs to AlbumDetailScreen
 class AlbumsController {
   final AlbumsState state;
 
   AlbumsController(this.state);
-
 
   // ================= CREATE =================
 
@@ -88,7 +89,7 @@ class AlbumsController {
   // ================= RENAME =================
 
   void renameAlbum(BuildContext context, Album album) {
-    final textController = TextEditingController(text: album.name);
+    final controller = TextEditingController(text: album.name);
 
     showDialog(
       context: context,
@@ -102,7 +103,7 @@ class AlbumsController {
           style: TextStyle(color: Colors.white),
         ),
         content: TextField(
-          controller: textController,
+          controller: controller,
           autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: const InputDecoration(
@@ -118,8 +119,10 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-            const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -129,16 +132,13 @@ class AlbumsController {
               ),
             ),
             onPressed: () {
-              final newName = textController.text.trim();
+              final newName = controller.text.trim();
               if (newName.isEmpty) return;
 
-              final updatedAlbum = album.copyWith(name: newName);
-              _replaceAlbum(updatedAlbum);
-
+              _replaceAlbum(album.copyWith(name: newName));
               Navigator.pop(context);
             },
-            child:
-            const Text('Save', style: TextStyle(color: Colors.white)),
+            child: const Text('Save'),
           ),
         ],
       ),
@@ -166,8 +166,10 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-            const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -177,14 +179,12 @@ class AlbumsController {
               ),
             ),
             onPressed: () {
-              final updatedAlbums = [...state.albums]
+              final updated = [...state.albums]
                 ..removeWhere((a) => a.id == album.id);
-
-              state.setAlbums(updatedAlbums);
+              state.setAlbums(updated);
               Navigator.pop(context);
             },
-            child:
-            const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -194,10 +194,10 @@ class AlbumsController {
   // ================= INTERNAL =================
 
   void _replaceAlbum(Album updated) {
-    final updatedList = state.albums.map((album) {
-      return album.id == updated.id ? updated : album;
+    final list = state.albums.map((a) {
+      return a.id == updated.id ? updated : a;
     }).toList();
 
-    state.setAlbums(updatedList);
+    state.setAlbums(list);
   }
 }

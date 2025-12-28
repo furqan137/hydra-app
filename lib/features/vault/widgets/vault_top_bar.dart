@@ -9,11 +9,18 @@ class VaultTopBar extends StatelessWidget {
     required this.controller,
   });
 
+  static const double _barHeight = 64;
+
   @override
   Widget build(BuildContext context) {
-    return controller.isSelectionMode
-        ? _selectionBar(context)
-        : _normalBar(context);
+    return SizedBox(
+      height: _barHeight,
+
+      /// 👇 Keep space ALWAYS
+      child: controller.isSelectionMode
+          ? const SizedBox() // empty but keeps height
+          : _normalBar(context),
+    );
   }
 
   // ================= NORMAL TOP BAR =================
@@ -24,7 +31,7 @@ class VaultTopBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          /// 🟢 APP TITLE (LEFT ALIGNED)
+          /// 🟢 APP TITLE
           const Text(
             'Hidra',
             style: TextStyle(
@@ -48,40 +55,6 @@ class VaultTopBar extends StatelessWidget {
             onPressed: () => _openSortSheet(context),
           ),
         ],
-      ),
-    );
-  }
-
-
-  // ================= SELECTION MODE BAR =================
-
-  Widget _selectionBar(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Container(
-        height: 56,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.35),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            Text(
-              'Selected • ${controller.selectedCount}',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.redAccent),
-              onPressed: controller.deleteSelected,
-            ),
-          ],
-        ),
       ),
     );
   }

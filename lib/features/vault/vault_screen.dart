@@ -5,9 +5,10 @@ import 'vault_controller.dart';
 import 'vault_import_sheet.dart';
 import 'empty_vault_view.dart';
 
-// ✅ SEPARATED UI COMPONENTS
+// UI
 import 'widgets/vault_top_bar.dart';
 import 'widgets/vault_grid.dart';
+import 'widgets/vault_selection_bar.dart';
 
 class VaultScreen extends StatefulWidget {
   const VaultScreen({super.key});
@@ -27,7 +28,7 @@ class _VaultScreenState extends State<VaultScreen> {
       extendBody: true,
       backgroundColor: Colors.transparent,
 
-      /// FAB (hidden during selection)
+      /// FAB (hidden while selecting files)
       floatingActionButton:
       (!controller.isSelectionMode &&
           (hasSkippedEmpty || controller.files.isNotEmpty))
@@ -70,50 +71,31 @@ class _VaultScreenState extends State<VaultScreen> {
 
     return Stack(
       children: [
+        /// MAIN CONTENT
         Column(
           children: [
-
-            /// ✅ TOP BAR (SEPARATED)
+            /// TOP BAR
             VaultTopBar(controller: controller),
 
-            /// ✅ GRID (SEPARATED)
+            /// GRID (extra bottom padding for selection bar)
             Expanded(
-              child: controller.isEmpty
-                  ? _emptyText()
-                  : VaultGrid(controller: controller),
+              child: Padding(
+                padding: EdgeInsets.only(
+                  bottom: controller.isSelectionMode ? 110 : 0,
+                ),
+                child: controller.isEmpty
+                    ? _emptyText()
+                    : VaultGrid(controller: controller),
+              ),
             ),
           ],
         ),
 
-        /// Bottom status (selection mode)
-        if (controller.isSelectionMode)
-          const Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 90),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Encrypting files securely...',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: 6),
-                  Text(
-                    'Import photos or videos.',
-                    style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        /// ✅ SELECTION BAR (Move / Export / Delete)
+        const Align(
+          alignment: Alignment.bottomCenter,
+          child: VaultSelectionBar(),
+        ),
       ],
     );
   }
@@ -125,18 +107,16 @@ class _VaultScreenState extends State<VaultScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          VaultImportSheet(
-            controller: context.read<VaultController>(),
-          ),
+      builder: (_) => VaultImportSheet(
+        controller: context.read<VaultController>(),
+      ),
     );
   }
 
   // ================= EMPTY =================
+
   Widget _emptyText() {
-    final size = MediaQueryData.fromView(
-      WidgetsBinding.instance.platformDispatcher.views.first,
-    ).size;
+    final size = MediaQuery.of(context).size;
 
     return Center(
       child: Column(

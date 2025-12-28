@@ -1,28 +1,32 @@
 class BackupManifest {
-  final int version;
+  final String appName;
+  final String appVersion;
   final DateTime createdAt;
-  final int vaultFileCount;
+  final int vaultCount;
   final int albumCount;
 
   BackupManifest({
-    required this.version,
+    required this.appName,
+    required this.appVersion,
     required this.createdAt,
-    required this.vaultFileCount,
+    required this.vaultCount,
     required this.albumCount,
   });
 
   Map<String, dynamic> toJson() => {
-    'version': version,
+    'appName': appName,
+    'appVersion': appVersion,
     'createdAt': createdAt.toIso8601String(),
-    'vaultFileCount': vaultFileCount,
+    'vaultCount': vaultCount,
     'albumCount': albumCount,
   };
 
   factory BackupManifest.fromJson(Map<String, dynamic> json) {
     return BackupManifest(
-      version: json['version'],
+      appName: json['appName'],
+      appVersion: json['appVersion'],
       createdAt: DateTime.parse(json['createdAt']),
-      vaultFileCount: json['vaultFileCount'],
+      vaultCount: json['vaultCount'],
       albumCount: json['albumCount'],
     );
   }

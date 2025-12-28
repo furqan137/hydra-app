@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:file_picker/file_picker.dart';
+
 import 'create_backup_state.dart';
+import '../../../../../services/local_backup_service.dart';
 
 class CreateBackupController extends ChangeNotifier {
   CreateBackupState _state = const CreateBackupState();
-
   CreateBackupState get state => _state;
 
   final TextEditingController passwordController =
@@ -18,10 +21,12 @@ class CreateBackupController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ================= BACKUP LOGIC =================
+  // ================= BACKUP =================
 
   Future<void> createBackup(BuildContext context) async {
-    if (passwordController.text.isEmpty) {
+    final password = passwordController.text.trim();
+
+    if (password.isEmpty) {
       _showError(context, 'Backup password required');
       return;
     }
@@ -29,21 +34,29 @@ class CreateBackupController extends ChangeNotifier {
     _state = _state.copyWith(isLoading: true);
     notifyListeners();
 
-    // 🔒 TODO: Encrypt vault + save backup
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      await LocalBackupService.createBackup(password: password);
 
-    _state = _state.copyWith(isLoading: false);
-    notifyListeners();
+      if (!context.mounted) return;
 
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Backup created successfully'),
-        backgroundColor: Colors.teal,
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Backup created successfully'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        _showError(context, 'Backup cancelled or failed');
+      }
+    } finally {
+      _state = _state.copyWith(isLoading: false);
+      notifyListeners();
+    }
   }
+
+
+  // ================= HELPERS =================
 
   void _showError(BuildContext context, String msg) {
     ScaffoldMessenger.of(context).showSnackBar(

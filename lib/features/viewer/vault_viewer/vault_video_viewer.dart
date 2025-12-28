@@ -1,13 +1,17 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../../../data/models/vault_file.dart';
-import '../../vault/vault_controller.dart';
-import 'vault_viewer_actions.dart';
 
 class VaultVideoViewer extends StatefulWidget {
   final VaultFile file;
+  final VoidCallback? onDelete;
 
-  const VaultVideoViewer({super.key, required this.file});
+  const VaultVideoViewer({
+    super.key,
+    required this.file,
+    this.onDelete,
+  });
 
   @override
   State<VaultVideoViewer> createState() => _VaultVideoViewerState();
@@ -15,13 +19,16 @@ class VaultVideoViewer extends StatefulWidget {
 
 class _VaultVideoViewerState extends State<VaultVideoViewer> {
   late VideoPlayerController _controller;
+  bool _isPlaying = true;
 
   @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.file(widget.file.file)
-      ..initialize().then((_) => setState(() {}))
-      ..play();
+      ..initialize().then((_) {
+        setState(() {});
+        _controller.play();
+      });
   }
 
   @override
@@ -30,31 +37,186 @@ class _VaultVideoViewerState extends State<VaultVideoViewer> {
     super.dispose();
   }
 
+  // ================= UI =================
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         children: [
+          /// ================= VIDEO =================
           Center(
             child: _controller.value.isInitialized
                 ? AspectRatio(
               aspectRatio: _controller.value.aspectRatio,
               child: VideoPlayer(_controller),
             )
-                : const CircularProgressIndicator(),
+                : const CircularProgressIndicator(color: Colors.white),
           ),
 
-          Align(
-            alignment: Alignment.bottomCenter,
-            child: VaultViewerActions(
-              onExport: () {},
-              onMove: () {},
-              onDelete: () => Navigator.pop(context),
+          /// ================= TOP BAR (CLOSE ONLY) =================
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                icon: const Icon(
+                  Icons.close,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+
+          /// ================= BOTTOM CONTROLS =================
+          SafeArea(
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: _bottomControls(context),
             ),
           ),
         ],
       ),
     );
+  }
+
+  // ================= BOTTOM CONTROLS =================
+
+  Widget _bottomControls(BuildContext context) {
+    final duration = _controller.value.duration;
+    final position = _controller.value.position;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withOpacity(0.0),
+            Colors.black.withOpacity(0.6),
+          ],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          /// ===== TIMELINE =====
+          VideoProgressIndicator(
+            _controller,
+            allowScrubbing: true,
+            colors: const VideoProgressColors(
+              playedColor: Color(0xFF0FB9B1),
+              bufferedColor: Colors.white38,
+              backgroundColor: Colors.white24,
+            ),
+          ),
+
+          const SizedBox(height: 8),
+
+          /// ===== TIME =====
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _format(position),
+                style: const TextStyle(color: Colors.white70),
+              ),
+              Text(
+                _format(duration),
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          /// ===== ACTIONS =====
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              /// PLAY / PAUSE
+              IconButton(
+                iconSize: 44,
+                icon: Icon(
+                  _isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.white,
+                ),
+                onPressed: () {
+                  setState(() {
+                    _isPlaying = !_isPlaying;
+                    _isPlaying
+                        ? _controller.play()
+                        : _controller.pause();
+                  });
+                },
+              ),
+
+              /// DELETE
+              IconButton(
+                iconSize: 40,
+                icon: const Icon(
+                  Icons.delete,
+                  color: Colors.redAccent,
+                ),
+                onPressed: () async {
+                  final ok = await _confirmDelete(context);
+                  if (!ok) return;
+
+                  widget.onDelete?.call();
+                  Navigator.pop(context);
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================= HELPERS =================
+
+  String _format(Duration d) {
+    final minutes =
+    d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds =
+    d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF101B2B),
+        title: const Text(
+          'Delete video?',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: const Text(
+          'This video will be permanently deleted.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ??
+        false;
   }
 }

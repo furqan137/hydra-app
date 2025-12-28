@@ -6,6 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/models/vault_file.dart';
+import '../../services/file_delete_service.dart';
+import '../../services/file_export_service.dart';
+import '../../services/file_move_service.dart';
 
 enum VaultSortType {
   nameAsc,
@@ -20,24 +23,32 @@ enum VaultSortType {
 class VaultController extends ChangeNotifier {
   final ImagePicker _picker = ImagePicker();
 
+  static const String _dbKey = 'vault_files';
+
   final List<VaultFile> _files = [];
-  final Set<VaultFile> _selectedFiles = {};
+  final Set<VaultFile> _selected = {};
 
   bool _isImporting = false;
-
-  static const String _dbKey = 'vault_files';
 
   // ================= GETTERS =================
 
   List<VaultFile> get files => List.unmodifiable(_files);
-  List<VaultFile> get selectedFiles => List.unmodifiable(_selectedFiles);
+  List<VaultFile> get selectedFiles => List.unmodifiable(_selected);
 
   bool get isEmpty => _files.isEmpty;
   bool get isImporting => _isImporting;
-  bool get isSelectionMode => _selectedFiles.isNotEmpty;
+  bool get isSelectionMode => _selected.isNotEmpty;
 
-  int get selectedCount => _selectedFiles.length;
+  int get selectedCount => _selected.length;
+
+  /// ✅ FIX: RESTORED (used by UI)
   int get totalFiles => _files.length;
+
+  // ================= INIT =================
+
+  VaultController() {
+    loadFiles();
+  }
 
   // ================= IMPORT =================
 
@@ -55,18 +66,18 @@ class VaultController extends ChangeNotifier {
         final file = File(x.path);
         if (!file.existsSync()) continue;
 
-        // prevent duplicates
+        // Prevent duplicates
         if (_files.any((f) => f.file.path == file.path)) continue;
 
         final isVideo = x.mimeType?.startsWith('video') ?? false;
 
-        final vaultFile = VaultFile(
-          file: file,
-          importedAt: DateTime.now(),
-          type: isVideo ? VaultFileType.video : VaultFileType.image,
+        _files.add(
+          VaultFile(
+            file: file,
+            type: isVideo ? VaultFileType.video : VaultFileType.image,
+            importedAt: DateTime.now(),
+          ),
         );
-
-        _files.add(vaultFile);
 
         if (deleteOriginals) {
           try {
@@ -89,33 +100,27 @@ class VaultController extends ChangeNotifier {
   void sortFiles(VaultSortType type) {
     switch (type) {
       case VaultSortType.nameAsc:
-        _files.sort((a, b) =>
-            a.file.path.toLowerCase().compareTo(b.file.path.toLowerCase()));
+        _files.sort((a, b) => a.file.path.compareTo(b.file.path));
         break;
-
       case VaultSortType.nameDesc:
-        _files.sort((a, b) =>
-            b.file.path.toLowerCase().compareTo(a.file.path.toLowerCase()));
+        _files.sort((a, b) => b.file.path.compareTo(a.file.path));
         break;
-
       case VaultSortType.dateNewest:
         _files.sort((a, b) => b.importedAt.compareTo(a.importedAt));
         break;
-
       case VaultSortType.dateOldest:
         _files.sort((a, b) => a.importedAt.compareTo(b.importedAt));
         break;
-
       case VaultSortType.sizeAsc:
-        _files.sort((a, b) =>
-            a.file.lengthSync().compareTo(b.file.lengthSync()));
+        _files.sort(
+              (a, b) => a.file.lengthSync().compareTo(b.file.lengthSync()),
+        );
         break;
-
       case VaultSortType.sizeDesc:
-        _files.sort((a, b) =>
-            b.file.lengthSync().compareTo(a.file.lengthSync()));
+        _files.sort(
+              (a, b) => b.file.lengthSync().compareTo(a.file.lengthSync()),
+        );
         break;
-
       case VaultSortType.reset:
         _files.sort((a, b) => a.importedAt.compareTo(b.importedAt));
         break;
@@ -126,22 +131,20 @@ class VaultController extends ChangeNotifier {
 
   // ================= SELECTION =================
 
-  bool isSelected(VaultFile file) => _selectedFiles.contains(file);
+  bool isSelected(VaultFile file) => _selected.contains(file);
 
   void toggleSelection(VaultFile file) {
-    _selectedFiles.contains(file)
-        ? _selectedFiles.remove(file)
-        : _selectedFiles.add(file);
+    _selected.contains(file) ? _selected.remove(file) : _selected.add(file);
     notifyListeners();
   }
 
   void clearSelection() {
-    _selectedFiles.clear();
+    _selected.clear();
     notifyListeners();
   }
 
   void selectAll() {
-    _selectedFiles
+    _selected
       ..clear()
       ..addAll(_files);
     notifyListeners();
@@ -149,40 +152,77 @@ class VaultController extends ChangeNotifier {
 
   // ================= DELETE =================
 
-  void deleteSelected() {
-    _files.removeWhere(_selectedFiles.contains);
-    _selectedFiles.clear();
-    saveFiles();
+  Future<void> deleteSelected() async {
+    if (_selected.isEmpty) return;
+
+    await FileDeleteService.deleteVaultFiles(_selected.toList());
+
+    _files.removeWhere(_selected.contains);
+    _selected.clear();
+
+    await saveFiles();
     notifyListeners();
   }
 
-  void removeFile(VaultFile file) {
-    _files.remove(file);
-    _selectedFiles.remove(file);
-    saveFiles();
+  // ================= EXPORT =================
+
+  Future<void> exportSelected(Directory targetDir) async {
+    if (_selected.isEmpty) return;
+
+    await FileExportService.exportVaultFiles(
+      _selected.toList(),
+      targetDir: targetDir,
+    );
+
+    clearSelection();
+  }
+
+
+  // ================= MOVE =================
+
+  Future<void> moveSelectedToAlbum(String albumId) async {
+    if (_selected.isEmpty) return;
+
+    await FileMoveService.moveVaultFilesToAlbum(
+      files: _selected.toList(),
+      albumId: albumId,
+    );
+
+    /// REMOVE FROM VAULT
+    _files.removeWhere(_selected.contains);
+    _selected.clear();
+
+    await saveFiles();
     notifyListeners();
   }
 
-  void clearVault() {
-    _files.clear();
-    _selectedFiles.clear();
-    saveFiles();
+
+
+  // ================= SINGLE DELETE =================
+
+  Future<void> deleteFile(VaultFile file) async {
+    try {
+      if (file.file.existsSync()) {
+        await file.file.delete();
+      }
+    } catch (_) {}
+
+    _files.removeWhere((f) => f.file.path == file.file.path);
+    _selected.remove(file);
+
+    await saveFiles();
     notifyListeners();
   }
+
 
   // ================= STORAGE =================
 
   Future<void> saveFiles() async {
     final prefs = await SharedPreferences.getInstance();
-
-    final jsonList = _files.map((f) => f.toJson()).toList();
-
     await prefs.setString(
       _dbKey,
-      jsonEncode(jsonList),
+      jsonEncode(_files.map((f) => f.toJson()).toList()),
     );
-
-    debugPrint('✅ Vault saved: ${_files.length} files');
   }
 
   Future<void> loadFiles() async {
@@ -206,11 +246,5 @@ class VaultController extends ChangeNotifier {
     } catch (e) {
       debugPrint('❌ Vault load error: $e');
     }
-  }
-
-  // ================= INIT =================
-
-  VaultController() {
-    loadFiles();
   }
 }

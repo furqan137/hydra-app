@@ -15,7 +15,6 @@ class AlbumsTopBar extends StatefulWidget {
     required this.onCreateAlbum,
   });
 
-
   @override
   State<AlbumsTopBar> createState() => _AlbumsTopBarState();
 }
