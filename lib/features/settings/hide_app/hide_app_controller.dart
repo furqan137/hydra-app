@@ -12,11 +12,12 @@ class HideAppController extends ChangeNotifier {
   static const String _dialCodeKey = 'hide_app_dial_code';
 
   // ================= METHOD CHANNEL =================
-  /// Android native implementation will live in MainActivity
-  static const MethodChannel _channel = MethodChannel('hide_app');
+  /// Must match MainActivity.kt
+  static const MethodChannel _channel =
+  MethodChannel('hide_app');
 
   // ================= STATE =================
-  HideAppState _state = HideAppState();
+  HideAppState _state = const HideAppState();
   HideAppState get state => _state;
 
   bool get isHidden => _state.isHidden;
@@ -40,32 +41,39 @@ class HideAppController extends ChangeNotifier {
   }
 
   // ================= TOGGLE HIDE =================
-  /// hide = true  → Hidra ❌ | Fake Phone ✅
-  /// hide = false → Hidra ✅ | Fake Phone ❌
+  /// hide = true  → Hidra ❌ | Phone ✅
+  /// hide = false → Hidra ✅ | Phone ❌
   Future<bool> toggleHidden(bool hide) async {
+    if (!Platform.isAndroid) {
+      debugPrint('⚠️ HideApp works only on Android');
+      return false;
+    }
+
     final prefs = await SharedPreferences.getInstance();
 
     try {
-      // 🔑 Call native FIRST (prevents launcher desync)
-      if (Platform.isAndroid) {
-        await _channel.invokeMethod(hide ? 'hide' : 'show');
-      }
+      // 🔑 Call native FIRST (source of truth)
+      await _channel.invokeMethod(hide ? 'hide' : 'show');
 
-      // Persist only after native success
+      // ✅ Persist only after native success
       await prefs.setBool(_hiddenKey, hide);
 
       _state = _state.copyWith(isHidden: hide);
       notifyListeners();
+
       return true;
+    } on PlatformException catch (e) {
+      debugPrint('❌ Platform error while toggling hide: ${e.message}');
+      return false;
     } catch (e) {
-      debugPrint('❌ HideApp toggle failed: $e');
+      debugPrint('❌ Unknown hide toggle error: $e');
       return false;
     }
   }
 
   // ================= UPDATE DIAL CODE =================
-  /// Dial code is for UX only.
-  /// Real detection is handled by Android SECRET_CODE receiver.
+  /// Dial code is UX only.
+  /// Actual detection handled by Android SECRET_CODE receiver.
   Future<bool> updateDialCode(String code) async {
     final cleaned = code.trim();
 
@@ -78,6 +86,7 @@ class HideAppController extends ChangeNotifier {
 
     _state = _state.copyWith(dialCode: cleaned);
     notifyListeners();
+
     return true;
   }
 }

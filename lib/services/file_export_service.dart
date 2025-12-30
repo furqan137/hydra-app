@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import '../data/models/vault_file.dart';
+import '../data/models/album_media_file.dart';
 
 class FileExportService {
-  /// Export single file
+  // ================= INTERNAL =================
+
   static Future<File?> _exportFile({
     required File source,
     required Directory targetDir,
@@ -15,8 +17,8 @@ class FileExportService {
         await targetDir.create(recursive: true);
       }
 
-      final targetPath =
-          '${targetDir.path}/${source.uri.pathSegments.last}';
+      final name = source.uri.pathSegments.last;
+      final targetPath = '${targetDir.path}/$name';
 
       return await source.copy(targetPath);
     } catch (e) {
@@ -25,7 +27,8 @@ class FileExportService {
     }
   }
 
-  /// ✅ FIX: Export multiple vault files
+  // ================= VAULT =================
+
   static Future<void> exportVaultFiles(
       List<VaultFile> files, {
         required Directory targetDir,
@@ -33,6 +36,20 @@ class FileExportService {
     for (final file in files) {
       await _exportFile(
         source: file.file,
+        targetDir: targetDir,
+      );
+    }
+  }
+
+  // ================= ALBUM MEDIA =================
+
+  static Future<void> exportAlbumMediaFiles(
+      List<AlbumMediaFile> files, {
+        required Directory targetDir,
+      }) async {
+    for (final media in files) {
+      await _exportFile(
+        source: media.file,
         targetDir: targetDir,
       );
     }

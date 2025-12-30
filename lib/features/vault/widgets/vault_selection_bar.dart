@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -61,16 +62,33 @@ class VaultSelectionBar extends StatelessWidget {
                     ),
 
                     /// EXPORT
+                    /// EXPORT
                     _action(
                       icon: Icons.upload,
                       label: 'Export',
                       onTap: () async {
-                        final dir =
-                        await getDownloadsDirectory();
-                        if (dir == null) return;
-                        await controller.exportSelected(dir);
+                        final selectedPath =
+                        await FilePicker.platform.getDirectoryPath(
+                          dialogTitle: 'Select folder to export files',
+                        );
+
+                        if (selectedPath == null) return;
+
+                        await controller.exportSelected(
+                          Directory(selectedPath),
+                        );
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Files exported successfully'),
+                              backgroundColor: Colors.teal,
+                            ),
+                          );
+                        }
                       },
                     ),
+
 
                     /// DELETE
                     _action(
@@ -78,8 +96,7 @@ class VaultSelectionBar extends StatelessWidget {
                       label: 'Delete',
                       color: Colors.redAccent,
                       onTap: () async {
-                        final ok =
-                        await _confirmDelete(context);
+                        final ok = await _confirmDelete(context);
                         if (!ok) return;
                         await controller.deleteSelected();
                       },
@@ -143,9 +160,10 @@ class VaultSelectionBar extends StatelessWidget {
             children: [
               Icon(icon, color: color),
               const SizedBox(height: 4),
-              Text(label,
-                  style:
-                  TextStyle(color: color, fontSize: 12)),
+              Text(
+                label,
+                style: TextStyle(color: color, fontSize: 12),
+              ),
             ],
           ),
         ),
@@ -153,12 +171,21 @@ class VaultSelectionBar extends StatelessWidget {
     );
   }
 
-  // ================= ALBUM PICKER (FIXED) =================
+  // ================= EXPORT DIRECTORY (FIXED) =================
+
+  Future<Directory?> _getExportDirectory() async {
+    if (Platform.isAndroid) {
+      return await getDownloadsDirectory();
+    }
+    // iOS fallback
+    return await getApplicationDocumentsDirectory();
+  }
+
+  // ================= ALBUM PICKER =================
 
   Future<String?> _showAlbumPicker(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('albums');
-
     if (raw == null) return null;
 
     final List decoded = jsonDecode(raw);
@@ -189,7 +216,7 @@ class VaultSelectionBar extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    /// 📁 FOLDER / COVER
+                    /// COVER
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: album.coverImage != null &&
@@ -214,7 +241,6 @@ class VaultSelectionBar extends StatelessWidget {
 
                     const SizedBox(width: 14),
 
-                    /// 📄 ALBUM INFO
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -241,7 +267,6 @@ class VaultSelectionBar extends StatelessWidget {
                       ),
                     ),
 
-                    /// ➡️ ARROW
                     const Icon(
                       Icons.chevron_right,
                       color: Colors.white38,
@@ -256,35 +281,34 @@ class VaultSelectionBar extends StatelessWidget {
     );
   }
 
-
   // ================= CONFIRM DELETE =================
 
   Future<bool> _confirmDelete(BuildContext context) async {
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor:
-        const Color(0xFF101B2B),
-        title: const Text('Delete files?',
-            style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF101B2B),
+        title: const Text(
+          'Delete files?',
+          style: TextStyle(color: Colors.white),
+        ),
         content: const Text(
           'Selected files will be permanently deleted.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.pop(context, false),
-            child: const Text('Cancel',
-                style:
-                TextStyle(color: Colors.white70)),
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white70),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor:
-                Colors.redAccent),
-            onPressed: () =>
-                Navigator.pop(context, true),
+              backgroundColor: Colors.redAccent,
+            ),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete'),
           ),
         ],

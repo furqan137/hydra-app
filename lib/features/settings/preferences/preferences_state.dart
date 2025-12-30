@@ -1,17 +1,30 @@
-enum StartPage { vault, albums }
-enum AppTheme { system, light, dark }
+enum StartPage {
+  vault,
+  albums,
+}
+
+enum AppTheme {
+  system,
+  light,
+  dark,
+}
 
 class PreferencesState {
+  /// Which page app opens on launch
   final StartPage startPage;
+
+  /// App theme preference
   final AppTheme theme;
-  final double storageUsed; // GB
-  final double storageTotal; // GB
+
+  /// Storage info (display only)
+  final double storageUsed;   // in GB
+  final double storageTotal;  // in GB
 
   const PreferencesState({
-    this.startPage = StartPage.vault,
-    this.theme = AppTheme.dark,
-    this.storageUsed = 18.5,
-    this.storageTotal = 128,
+    this.startPage = StartPage.vault, // ✅ default
+    this.theme = AppTheme.system,     // ✅ system theme (best practice)
+    this.storageUsed = 0.0,           // ✅ safe default
+    this.storageTotal = 0.0,          // ✅ safe default
   });
 
   PreferencesState copyWith({

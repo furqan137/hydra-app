@@ -1,12 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/biometric_service.dart';
 
 class BiometricController extends ChangeNotifier {
+  static final BiometricController _instance = BiometricController._internal();
+  factory BiometricController() => _instance;
+  BiometricController._internal() {
+    loadEnabled();
+  }
+
+  static const _prefsKey = 'biometric_enabled';
   bool _enabled = false;
   String? _error;
 
   bool get isEnabled => _enabled;
   String? get error => _error;
+
+  Future<void> loadEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    _enabled = prefs.getBool(_prefsKey) ?? false;
+    notifyListeners();
+  }
+
+  Future<void> _saveEnabled(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_prefsKey, value);
+  }
 
   // ================= AVAILABILITY =================
 
@@ -37,26 +56,27 @@ class BiometricController extends ChangeNotifier {
       return false;
     }
 
-    final authenticated = await BiometricService.authenticate(
-      reason: 'Authenticate to enable biometric unlock',
-    );
-
-    if (!authenticated) {
-      _error = 'Biometric authentication failed';
+    try {
+      await BiometricService.authenticate(
+        reason: 'Authenticate to enable biometric unlock',
+      );
+      _enabled = true;
+      await _saveEnabled(true);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = e.toString().replaceFirst('Exception: ', '');
       notifyListeners();
       return false;
     }
-
-    _enabled = true;
-    notifyListeners();
-    return true;
   }
 
   // ================= DISABLE =================
 
-  void disableBiometric() {
+  void disableBiometric() async {
     _enabled = false;
     _error = null;
+    await _saveEnabled(false);
     notifyListeners();
   }
 }

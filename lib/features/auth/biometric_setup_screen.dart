@@ -109,24 +109,20 @@ class _BiometricSetupScreenState
                   onPressed: _error != null
                       ? null
                       : () async {
-                    final authenticated =
-                    await BiometricService.authenticate(
-                      reason:
-                      'Authenticate to enable biometric unlock',
-                    );
-
-                    if (!mounted) return;
-
-                    if (!authenticated) {
+                    try {
+                      await BiometricService.authenticate(
+                        reason:
+                        'Authenticate to enable biometric unlock',
+                      );
+                      if (!mounted) return;
+                      // ✅ SUCCESS → go home
+                      _goToHome(context);
+                    } catch (e) {
+                      if (!mounted) return;
                       setState(() {
-                        _error =
-                        'Authentication failed.\nPlease try again.';
+                        _error = e.toString().replaceFirst('Exception: ', '');
                       });
-                      return;
                     }
-
-                    // ✅ SUCCESS → go home
-                    _goToHome(context);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0FB9B1),

@@ -6,8 +6,10 @@ import '../../../data/models/album_media_file.dart';
 class AlbumMediaTile extends StatelessWidget {
   final AlbumMediaFile mediaFile;
 
-  /// NEW
+  /// Selection state
   final bool isSelected;
+
+  /// Gestures
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
@@ -23,9 +25,10 @@ class AlbumMediaTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
       onLongPress: onLongPress,
+      borderRadius: BorderRadius.circular(14),
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -36,7 +39,7 @@ class AlbumMediaTile extends StatelessWidget {
           ),
 
           /// ▶ VIDEO PLAY ICON
-          if (_isVideo)
+          if (_isVideo && !isSelected)
             const Center(
               child: Icon(
                 Icons.play_circle_fill,
@@ -45,7 +48,7 @@ class AlbumMediaTile extends StatelessWidget {
               ),
             ),
 
-          /// 🔒 LOCK ICON (optional, keep for future private albums)
+          /// 🔒 LOCK ICON (future-proof)
           if (mediaFile.isEncrypted)
             const Positioned(
               right: 8,
@@ -58,10 +61,12 @@ class AlbumMediaTile extends StatelessWidget {
             ),
 
           /// ✅ SELECTION OVERLAY
-          if (isSelected)
-            Container(
+          AnimatedOpacity(
+            opacity: isSelected ? 1 : 0,
+            duration: const Duration(milliseconds: 160),
+            child: Container(
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.35),
+                color: Colors.black.withOpacity(0.45),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Center(
@@ -72,6 +77,7 @@ class AlbumMediaTile extends StatelessWidget {
                 ),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -83,8 +89,15 @@ class AlbumMediaTile extends StatelessWidget {
     return Image.file(
       mediaFile.file,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) =>
-      const ColoredBox(color: Colors.black),
+      errorBuilder: (_, __, ___) => const ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Icon(
+            Icons.broken_image,
+            color: Colors.white38,
+          ),
+        ),
+      ),
     );
   }
 

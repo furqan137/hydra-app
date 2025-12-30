@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'security_settings_state.dart';
 import '../../auth/biometric_controller.dart';
+import 'change_password/change_password_screen.dart';
 
 class SecuritySettingsController extends ChangeNotifier {
   SecuritySettingsState _state = const SecuritySettingsState();
@@ -8,13 +9,25 @@ class SecuritySettingsController extends ChangeNotifier {
 
   final BiometricController _biometricController = BiometricController();
 
+  SecuritySettingsController() {
+    _syncBiometricState();
+  }
+
+  Future<void> _syncBiometricState() async {
+    await Future.delayed(const Duration(milliseconds: 100));
+    _state = _state.copyWith(
+      biometricEnabled: _biometricController.isEnabled,
+    );
+    notifyListeners();
+  }
+
   // ================= BIOMETRIC =================
 
   Future<void> toggleBiometric(bool enable, BuildContext context) async {
     /// 🔓 Disable biometric immediately
     if (!enable) {
-      _state = _state.copyWith(biometricEnabled: false);
-      notifyListeners();
+      _biometricController.disableBiometric();
+      await _syncBiometricState();
       return;
     }
 
@@ -26,12 +39,12 @@ class SecuritySettingsController extends ChangeNotifier {
         context,
         _biometricController.error,
       );
+      await _syncBiometricState();
       return;
     }
 
     /// ✅ Enabled successfully
-    _state = _state.copyWith(biometricEnabled: true);
-    notifyListeners();
+    await _syncBiometricState();
   }
 
   // ================= AUTO LOCK =================
@@ -42,14 +55,13 @@ class SecuritySettingsController extends ChangeNotifier {
   }
 
   // ================= NAVIGATION =================
+  // ✅ ONLY CHANGE IS HERE
 
   void openChangePassword(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const _PlaceholderScreen(
-          title: 'Change Password',
-        ),
+        builder: (_) => const ChangePasswordScreen(),
       ),
     );
   }
@@ -85,30 +97,6 @@ class SecuritySettingsController extends ChangeNotifier {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// TEMP PLACEHOLDER
-class _PlaceholderScreen extends StatelessWidget {
-  final String title;
-
-  const _PlaceholderScreen({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF050B18),
-        title: Text(title),
-      ),
-      body: const Center(
-        child: Text(
-          'Coming Soon',
-          style: TextStyle(color: Colors.white70),
-        ),
       ),
     );
   }

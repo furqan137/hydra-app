@@ -8,7 +8,10 @@ import '../data/models/album_media_file.dart';
 import '../data/models/album_model.dart';
 
 class FileMoveService {
-  /// Move vault files into album (LOGICAL MOVE)
+  // =====================================================
+  // VAULT → ALBUM
+  // =====================================================
+
   static Future<void> moveVaultFilesToAlbum({
     required List<VaultFile> files,
     required String albumId,
@@ -38,31 +41,112 @@ class FileMoveService {
       );
     }
 
-    /// SAVE ALBUM MEDIA
+    // Save album media
     await prefs.setString(
       albumKey,
       jsonEncode(albumFiles.map((e) => e.toJson()).toList()),
     );
 
-    /// UPDATE ALBUM META (count + cover)
+    // Update album meta
+    await _updateAlbumMeta(
+      albumId: albumId,
+      files: albumFiles,
+      prefs: prefs,
+    );
+  }
+
+  // =====================================================
+  // ALBUM → ALBUM (NEW)
+  // =====================================================
+
+  static Future<void> moveAlbumMediaFilesToAlbum({
+    required String sourceAlbumId,
+    required String targetAlbumId,
+    required List<AlbumMediaFile> files,
+  }) async {
+    if (sourceAlbumId == targetAlbumId) return;
+
+    final prefs = await SharedPreferences.getInstance();
+
+    final sourceKey = 'album_media_$sourceAlbumId';
+    final targetKey = 'album_media_$targetAlbumId';
+
+    // Load source album media
+    final sourceRaw = prefs.getString(sourceKey);
+    final List<AlbumMediaFile> sourceFiles = sourceRaw == null
+        ? []
+        : (jsonDecode(sourceRaw) as List)
+        .map((e) => AlbumMediaFile.fromJson(e))
+        .toList();
+
+    // Load target album media
+    final targetRaw = prefs.getString(targetKey);
+    final List<AlbumMediaFile> targetFiles = targetRaw == null
+        ? []
+        : (jsonDecode(targetRaw) as List)
+        .map((e) => AlbumMediaFile.fromJson(e))
+        .toList();
+
+    // Remove from source
+    sourceFiles.removeWhere(
+          (f) => files.any((m) => m.file.path == f.file.path),
+    );
+
+    // Add to target
+    targetFiles.addAll(files);
+
+    // Save both albums
+    await prefs.setString(
+      sourceKey,
+      jsonEncode(sourceFiles.map((e) => e.toJson()).toList()),
+    );
+
+    await prefs.setString(
+      targetKey,
+      jsonEncode(targetFiles.map((e) => e.toJson()).toList()),
+    );
+
+    // Update album metadata
+    await _updateAlbumMeta(
+      albumId: sourceAlbumId,
+      files: sourceFiles,
+      prefs: prefs,
+    );
+
+    await _updateAlbumMeta(
+      albumId: targetAlbumId,
+      files: targetFiles,
+      prefs: prefs,
+    );
+  }
+
+  // =====================================================
+  // ALBUM META UPDATE (PRIVATE)
+  // =====================================================
+
+  static Future<void> _updateAlbumMeta({
+    required String albumId,
+    required List<AlbumMediaFile> files,
+    required SharedPreferences prefs,
+  }) async {
     final albumsRaw = prefs.getString('albums');
-    if (albumsRaw != null) {
-      final albums = (jsonDecode(albumsRaw) as List)
-          .map((e) => Album.fromJson(e))
-          .toList();
+    if (albumsRaw == null) return;
 
-      final index = albums.indexWhere((a) => a.id == albumId);
-      if (index != -1) {
-        albums[index] = albums[index].copyWith(
-          fileCount: albumFiles.length,
-          coverImage: albumFiles.last.file.path,
-        );
+    final albums = (jsonDecode(albumsRaw) as List)
+        .map((e) => Album.fromJson(e))
+        .toList();
 
-        await prefs.setString(
-          'albums',
-          jsonEncode(albums.map((e) => e.toJson()).toList()),
-        );
-      }
-    }
+    final index = albums.indexWhere((a) => a.id == albumId);
+    if (index == -1) return;
+
+    albums[index] = albums[index].copyWith(
+      fileCount: files.length,
+      coverImage: files.isNotEmpty ? files.last.file.path : null,
+    );
+
+    await prefs.setString(
+      'albums',
+      jsonEncode(albums.map((e) => e.toJson()).toList()),
+    );
   }
 }

@@ -4,7 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 class CreditsScreen extends StatelessWidget {
   const CreditsScreen({super.key});
 
-  static const _donationUrl = 'https://www.buymeacoffee.com/hidra';
+  static const _donationUrl = 'https://www.buymeacoffee.com/';
 
   @override
   Widget build(BuildContext context) {
@@ -34,23 +34,19 @@ class CreditsScreen extends StatelessWidget {
                       const SizedBox(height: 30),
 
                       _creditRow(
-                        name: 'Giovanni Simoncini',
+                        name: 'Furqan Zafar',
                         role: 'Design & Development',
                       ),
                       _creditRow(
-                        name: 'Sara Rossi',
+                        name: 'Furqan Zafar',
                         role: 'Marketing & Content',
                       ),
                       _creditRow(
-                        name: 'Marco Bianchi',
+                        name: 'Mehboob',
                         role: 'Quality Assurance & Testing',
                       ),
                       _creditRow(
-                        name: 'OpenAI',
-                        role: 'AI Model Integration',
-                      ),
-                      _creditRow(
-                        name: 'Heroicons',
+                        name: 'FlatIcons.com',
                         role: 'Icons',
                       ),
 
@@ -244,7 +240,7 @@ class CreditsScreen extends StatelessWidget {
         ),
         SizedBox(height: 8),
         Text(
-          'MAKT Studio',
+          'Hydra Apps',
           style: TextStyle(
             color: Colors.white70,
             fontSize: 16,
@@ -253,7 +249,7 @@ class CreditsScreen extends StatelessWidget {
         ),
         SizedBox(height: 4),
         Text(
-          'A MAKT Studio Product',
+          'A Hydra Studio Product',
           style: TextStyle(
             color: Colors.white54,
             fontSize: 13,

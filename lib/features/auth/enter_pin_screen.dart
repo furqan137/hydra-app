@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/security/secure_storage.dart';
+import '../../features/auth/biometric_controller.dart';
+import '../../services/biometric_service.dart';
 
 class EnterPinScreen extends StatefulWidget {
   const EnterPinScreen({super.key});
@@ -13,12 +15,54 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
   final TextEditingController pinController = TextEditingController();
   bool obscure = true;
   String? errorText;
+  bool _showPin = false;
+  bool _biometricTried = false;
+  bool _biometricEnabled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricEnabled();
+  }
+
+  Future<void> _checkBiometricEnabled() async {
+    final biometricController = BiometricController();
+    await biometricController.loadEnabled(); // Ensure latest value from storage
+    setState(() {
+      _biometricEnabled = biometricController.isEnabled;
+    });
+    if (_biometricEnabled) {
+      Future.delayed(const Duration(milliseconds: 300), _tryBiometricUnlock);
+    } else {
+      setState(() {
+        _showPin = true;
+      });
+    }
+  }
+
+  Future<void> _tryBiometricUnlock() async {
+    if (_biometricTried) return;
+    _biometricTried = true;
+    try {
+      await BiometricService.authenticate(reason: 'Authenticate to unlock Hidra');
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/home');
+    } catch (e) {
+      setState(() {
+        _showPin = true;
+      });
+    }
+  }
+
+  Future<void> _triggerBiometric() async {
+    _biometricTried = false;
+    await _tryBiometricUnlock();
+  }
 
   Future<void> _validatePin() async {
     final enteredPin = pinController.text.trim();
     final savedPin = await SecureStorage.readPin();
     if (enteredPin == savedPin) {
-      // Navigate to Home (replace with your home screen route)
       Navigator.pushReplacementNamed(context, '/home');
     } else {
       setState(() {
@@ -46,7 +90,8 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
           child: Center(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
+              child: _showPin
+                  ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset(
@@ -63,6 +108,26 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (_biometricEnabled) ...[
+                    GestureDetector(
+                      onTap: _triggerBiometric,
+                      child: Column(
+                        children: [
+                          Image.asset(
+                            'assets/icons/biometrics.png',
+                            width: 48,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Use fingerprint',
+                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
                   TextField(
                     controller: pinController,
                     obscureText: obscure,
@@ -100,8 +165,11 @@ class _EnterPinScreenState extends State<EnterPinScreen> {
                       style: TextStyle(fontSize: 16),
                     ),
                   ),
+                  const SizedBox(height: 16),
+
                 ],
-              ),
+              )
+                  : const CircularProgressIndicator(color: Colors.white),
             ),
           ),
         ),

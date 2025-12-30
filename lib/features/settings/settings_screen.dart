@@ -128,7 +128,7 @@ class _SettingsView extends StatelessWidget {
             ),
           ),
           Spacer(),
-          Icon(Icons.more_vert, color: Colors.white),
+          // ❌ removed three-dot icon
         ],
       ),
     );

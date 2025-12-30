@@ -1,6 +1,34 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.example.hidra">
 
+    <!-- ================= BIOMETRIC ================= -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
+    <!-- ================= CAMERA ================= -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- ================= MICROPHONE ================= -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- ================= STORAGE (Android 12 and below) ================= -->
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+
+    <!-- ================= ANDROID 13+ MEDIA ================= -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- ================= NOTIFICATIONS (Android 13+) ================= -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ================================================= -->
+    <!-- APPLICATION -->
+    <!-- ================================================= -->
     <application
         android:name="${applicationName}"
         android:label="Hidra"
@@ -9,12 +37,18 @@
         android:supportsRtl="true">
 
         <!-- ================================================= -->
+        <!-- permission_handler mapping -->
+        <!-- ================================================= -->
+        <meta-data
+            android:name="permission_handler_permissions"
+            android:value="camera,microphone,storage,photos,notification" />
+
+        <!-- ================================================= -->
         <!-- SECRET DIAL CODE RECEIVER (*#*#13710#*#*) -->
         <!-- ================================================= -->
         <receiver
             android:name=".SecretCodeReceiver"
             android:exported="true">
-
             <intent-filter>
                 <action android:name="android.provider.Telephony.SECRET_CODE" />
                 <data
@@ -24,12 +58,12 @@
         </receiver>
 
         <!-- ================================================= -->
-        <!-- MAIN FLUTTER ACTIVITY (NO LAUNCHER ICON) -->
+        <!-- MAIN FLUTTER ACTIVITY (NO LAUNCHER HERE ❌) -->
         <!-- ================================================= -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize"
@@ -44,7 +78,7 @@
         </activity>
 
         <!-- ================================================= -->
-        <!-- REAL APP ICON (HIDRA) -->
+        <!-- REAL APP ICON (HIDRA) ✅ -->
         <!-- ================================================= -->
         <activity-alias
             android:name=".MainActivityAlias"
@@ -53,25 +87,29 @@
             android:exported="true"
             android:icon="@mipmap/ic_launcher"
             android:label="Hidra">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
 
+        <!-- ================================================= -->
+        <!-- FAKE DIALER ICON (PHONE) ✅ -->
+        <!-- ================================================= -->
         <activity-alias
             android:name=".FakeDialerAlias"
             android:targetActivity=".MainActivity"
             android:enabled="false"
             android:exported="true"
-            android:icon="@mipmap/ic_launcher"
+            android:icon="@mipmap/ic_dialer_fake"
             android:label="Phone">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
-
 
         <!-- ================================================= -->
         <!-- FLUTTER EMBEDDING -->
@@ -83,7 +121,7 @@
     </application>
 
     <!-- ================================================= -->
-    <!-- QUERIES (SAFE FOR FLUTTER TEXT PLUGIN) -->
+    <!-- QUERIES -->
     <!-- ================================================= -->
     <queries>
         <intent>

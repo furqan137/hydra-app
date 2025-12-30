@@ -2,12 +2,14 @@ package com.example.hidra
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.view.WindowManager
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
 
     private val SCREENSHOT_CHANNEL = "hidra/screenshot"
     private val HIDE_APP_CHANNEL = "hide_app"
@@ -26,12 +28,12 @@ class MainActivity : FlutterActivity() {
                         WindowManager.LayoutParams.FLAG_SECURE,
                         WindowManager.LayoutParams.FLAG_SECURE
                     )
-                    result.success(null)
+                    result.success(true)
                 }
 
                 "disableSecure" -> {
                     window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-                    result.success(null)
+                    result.success(true)
                 }
 
                 else -> result.notImplemented()
@@ -44,24 +46,17 @@ class MainActivity : FlutterActivity() {
             HIDE_APP_CHANNEL
         ).setMethodCallHandler { call, result ->
             when (call.method) {
+
+                // 🔒 HIDE APP → SHOW FAKE DIALER
                 "hide" -> {
-                    hideRealAppIcon()
-                    showFakeDialerIcon()
-
-                    // 🔥 CRITICAL: CLOSE TASK CLEANLY
-                    finishAndRemoveTask()
-
-                    result.success(null)
+                    toggleAppIcon(hide = true)
+                    result.success(true)
                 }
 
+                // 🔓 UNHIDE APP → SHOW REAL ICON
                 "show" -> {
-                    showRealAppIcon()
-                    hideFakeDialerIcon()
-
-                    // 🔥 CRITICAL: CLOSE TASK CLEANLY
-                    finishAndRemoveTask()
-
-                    result.success(null)
+                    toggleAppIcon(hide = false)
+                    result.success(true)
                 }
 
                 else -> result.notImplemented()
@@ -69,37 +64,52 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // ================= ICON TOGGLING =================
+    // ================= CORE TOGGLING LOGIC =================
 
-    private fun hideRealAppIcon() {
-        applicationContext.packageManager.setComponentEnabledSetting(
-            ComponentName(applicationContext, "com.example.hidra.MainActivityAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
-        )
-    }
+    private fun toggleAppIcon(hide: Boolean) {
+        val pm = applicationContext.packageManager
 
-    private fun showRealAppIcon() {
-        applicationContext.packageManager.setComponentEnabledSetting(
-            ComponentName(applicationContext, "com.example.hidra.MainActivityAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP
+        val realApp = ComponentName(
+            applicationContext,
+            "com.example.hidra.MainActivityAlias"
         )
-    }
 
-    private fun showFakeDialerIcon() {
-        applicationContext.packageManager.setComponentEnabledSetting(
-            ComponentName(applicationContext, "com.example.hidra.FakeDialerAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
-            PackageManager.DONT_KILL_APP
+        val fakeDialer = ComponentName(
+            applicationContext,
+            "com.example.hidra.FakeDialerAlias"
         )
-    }
 
-    private fun hideFakeDialerIcon() {
-        applicationContext.packageManager.setComponentEnabledSetting(
-            ComponentName(applicationContext, "com.example.hidra.FakeDialerAlias"),
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
-        )
+        if (hide) {
+            // Hide Hidra → Show Phone
+            pm.setComponentEnabledSetting(
+                realApp,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+
+            pm.setComponentEnabledSetting(
+                fakeDialer,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        } else {
+            // Show Hidra → Hide Phone
+            pm.setComponentEnabledSetting(
+                fakeDialer,
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                PackageManager.DONT_KILL_APP
+            )
+
+            pm.setComponentEnabledSetting(
+                realApp,
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                PackageManager.DONT_KILL_APP
+            )
+        }
+
+        // 🔥 FORCE LAUNCHER REFRESH SAFELY
+        Handler(Looper.getMainLooper()).postDelayed({
+            finishAndRemoveTask()
+        }, 300)
     }
 }

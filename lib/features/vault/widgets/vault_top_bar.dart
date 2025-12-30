@@ -15,10 +15,8 @@ class VaultTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       height: _barHeight,
-
-      /// 👇 Keep space ALWAYS
       child: controller.isSelectionMode
-          ? const SizedBox() // empty but keeps height
+          ? const SizedBox()
           : _normalBar(context),
     );
   }
@@ -27,11 +25,10 @@ class VaultTopBar extends StatelessWidget {
 
   Widget _normalBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          /// 🟢 APP TITLE
+          /// 🟢 TITLE (LEFT)
           const Text(
             'Hidra',
             style: TextStyle(
@@ -44,88 +41,135 @@ class VaultTopBar extends StatelessWidget {
 
           const Spacer(),
 
-          /// SORT BUTTON
-          IconButton(
-            splashRadius: 22,
-            icon: const Icon(
-              Icons.sort,
-              color: Colors.white70,
-              size: 24,
-            ),
-            onPressed: () => _openSortSheet(context),
-          ),
+          /// 🔽 FILTER / SORT ICON (RIGHT)
+          _SortButton(controller: controller),
         ],
       ),
-    );
-  }
-
-  // ================= SORT SHEET =================
-
-  void _openSortSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _SortSheet(controller: controller),
     );
   }
 }
 
-// ================= SORT BOTTOM SHEET =================
+// ================= SORT BUTTON (ANCHOR) =================
 
-class _SortSheet extends StatelessWidget {
+class _SortButton extends StatelessWidget {
   final VaultController controller;
 
-  const _SortSheet({required this.controller});
+  const _SortButton({required this.controller});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF101B2B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+    final key = GlobalKey();
+
+    return IconButton(
+      key: key,
+      splashRadius: 22,
+      icon: const Icon(
+        Icons.sort,
+        color: Colors.white70,
+        size: 24,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _item(
-            icon: Icons.sort_by_alpha,
-            title: 'Name (A–Z)',
-            onTap: () => _apply(context, VaultSortType.nameAsc),
-          ),
-          _item(
-            icon: Icons.sort_by_alpha,
-            title: 'Name (Z–A)',
-            onTap: () => _apply(context, VaultSortType.nameDesc),
-          ),
-          _item(
-            icon: Icons.storage,
-            title: 'Size (Small → Large)',
-            onTap: () => _apply(context, VaultSortType.sizeAsc),
-          ),
-          _item(
-            icon: Icons.storage,
-            title: 'Size (Large → Small)',
-            onTap: () => _apply(context, VaultSortType.sizeDesc),
-          ),
-          _item(
-            icon: Icons.schedule,
-            title: 'Newest First',
-            onTap: () => _apply(context, VaultSortType.dateNewest),
-          ),
-          _item(
-            icon: Icons.history,
-            title: 'Oldest First',
-            onTap: () => _apply(context, VaultSortType.dateOldest),
-          ),
-          const Divider(color: Colors.white24),
-          _item(
-            icon: Icons.restart_alt,
-            title: 'Restore Default',
-            highlight: true,
-            onTap: () => _apply(context, VaultSortType.reset),
-          ),
-        ],
+      onPressed: () => _openSortPopup(context, key),
+    );
+  }
+
+  void _openSortPopup(BuildContext context, GlobalKey key) {
+    final renderBox =
+    key.currentContext!.findRenderObject() as RenderBox;
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.transparent,
+      builder: (_) {
+        return Stack(
+          children: [
+            // Tap outside to close
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(color: Colors.transparent),
+            ),
+
+            // Popup anchored BELOW the icon
+            Positioned(
+              top: position.dy + size.height + 8,
+              right: 12,
+              child: _SortPopup(controller: controller),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+// ================= SORT POPUP PANEL =================
+
+class _SortPopup extends StatelessWidget {
+  final VaultController controller;
+
+  const _SortPopup({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 260,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF101B2B),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black54,
+              blurRadius: 18,
+              offset: Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _item(
+              icon: Icons.sort_by_alpha,
+              title: 'Name (A–Z)',
+              onTap: () => _apply(context, VaultSortType.nameAsc),
+            ),
+            _item(
+              icon: Icons.sort_by_alpha,
+              title: 'Name (Z–A)',
+              onTap: () => _apply(context, VaultSortType.nameDesc),
+            ),
+            _item(
+              icon: Icons.storage,
+              title: 'Size (Small → Large)',
+              onTap: () => _apply(context, VaultSortType.sizeAsc),
+            ),
+            _item(
+              icon: Icons.storage,
+              title: 'Size (Large → Small)',
+              onTap: () => _apply(context, VaultSortType.sizeDesc),
+            ),
+            _item(
+              icon: Icons.schedule,
+              title: 'Newest First',
+              onTap: () => _apply(context, VaultSortType.dateNewest),
+            ),
+            _item(
+              icon: Icons.history,
+              title: 'Oldest First',
+              onTap: () => _apply(context, VaultSortType.dateOldest),
+            ),
+            const Divider(color: Colors.white24),
+            _item(
+              icon: Icons.restart_alt,
+              title: 'Restore Default',
+              highlight: true,
+              onTap: () => _apply(context, VaultSortType.reset),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -137,9 +181,11 @@ class _SortSheet extends StatelessWidget {
     bool highlight = false,
   }) {
     return ListTile(
+      dense: true,
       onTap: onTap,
       leading: Icon(
         icon,
+        size: 20,
         color: highlight ? const Color(0xFF0FB9B1) : Colors.white70,
       ),
       title: Text(

@@ -1,76 +1,142 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:app_settings/app_settings.dart';
 
 import 'app_permissions_state.dart';
 
-class AppPermissionsController extends ChangeNotifier {
+class AppPermissionsController extends ChangeNotifier
+    with WidgetsBindingObserver {
   AppPermissionsState _state = const AppPermissionsState();
   AppPermissionsState get state => _state;
 
   AppPermissionsController() {
+    WidgetsBinding.instance.addObserver(this);
     loadPermissions();
   }
 
-  // ================= LOAD CURRENT STATUS =================
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      loadPermissions();
+    }
+  }
+
+  // ================= LOAD =================
 
   Future<void> loadPermissions() async {
-    final storage = await Permission.photos.status;
-    final camera = await Permission.camera.status;
-    final mic = await Permission.microphone.status;
-    final notifications = await Permission.notification.status;
+    final storageStatus = await _storagePermission.status;
+    final cameraStatus = await Permission.camera.status;
+    final micStatus = await Permission.microphone.status;
+    final notifStatus = await Permission.notification.status;
 
     _state = _state.copyWith(
-      storageGranted: storage.isGranted,
-      cameraGranted: camera.isGranted,
-      microphoneGranted: mic.isGranted,
-      notificationsGranted: notifications.isGranted,
+      storageGranted: storageStatus.isGranted,
+      cameraGranted: cameraStatus.isGranted,
+      microphoneGranted: micStatus.isGranted,
+      notificationsGranted: notifStatus.isGranted,
+      storagePermanentlyDenied:
+      storageStatus.isPermanentlyDenied ||
+          storageStatus.isRestricted,
+      cameraPermanentlyDenied:
+      cameraStatus.isPermanentlyDenied ||
+          cameraStatus.isRestricted,
+      microphonePermanentlyDenied:
+      micStatus.isPermanentlyDenied ||
+          micStatus.isRestricted,
+      notificationsPermanentlyDenied:
+      notifStatus.isPermanentlyDenied ||
+          notifStatus.isRestricted,
     );
     notifyListeners();
   }
 
-  // ================= REQUEST PERMISSIONS =================
+  // ================= REQUESTS =================
 
   Future<void> requestStorage() async {
-    final res = await Permission.photos.request();
-    _update(storage: res.isGranted);
+    await _handlePermission(_storagePermission,
+        onGranted: (v) => _update(storage: v),
+        onPermanent: (v) =>
+            _update(storagePermanentlyDenied: v));
   }
 
   Future<void> requestCamera() async {
-    final res = await Permission.camera.request();
-    _update(camera: res.isGranted);
+    await _handlePermission(Permission.camera,
+        onGranted: (v) => _update(camera: v),
+        onPermanent: (v) =>
+            _update(cameraPermanentlyDenied: v));
   }
 
   Future<void> requestMicrophone() async {
-    final res = await Permission.microphone.request();
-    _update(microphone: res.isGranted);
+    await _handlePermission(Permission.microphone,
+        onGranted: (v) => _update(microphone: v),
+        onPermanent: (v) =>
+            _update(microphonePermanentlyDenied: v));
   }
 
   Future<void> requestNotifications() async {
-    final res = await Permission.notification.request();
-    _update(notifications: res.isGranted);
+    await _handlePermission(Permission.notification,
+        onGranted: (v) => _update(notifications: v),
+        onPermanent: (v) =>
+            _update(notificationsPermanentlyDenied: v));
   }
 
-  // ================= OPEN SYSTEM SETTINGS =================
+  // ================= HELPERS =================
+
+  Permission get _storagePermission {
+    if (Platform.isIOS) return Permission.photos;
+    return Permission.storage;
+  }
+
+  Future<void> _handlePermission(
+      Permission permission, {
+        required Function(bool) onGranted,
+        required Function(bool) onPermanent,
+      }) async {
+    final status = await permission.request();
+
+    if (status.isGranted) {
+      onGranted(true);
+      onPermanent(false);
+    } else if (status.isPermanentlyDenied ||
+        status.isRestricted) {
+      onPermanent(true);
+      openSystemSettings();
+    } else {
+      onGranted(false);
+    }
+  }
 
   void openSystemSettings() {
     AppSettings.openAppSettings();
   }
-
-  // ================= HELPER =================
 
   void _update({
     bool? storage,
     bool? camera,
     bool? microphone,
     bool? notifications,
+    bool? storagePermanentlyDenied,
+    bool? cameraPermanentlyDenied,
+    bool? microphonePermanentlyDenied,
+    bool? notificationsPermanentlyDenied,
   }) {
     _state = _state.copyWith(
-      storageGranted: storage ?? _state.storageGranted,
-      cameraGranted: camera ?? _state.cameraGranted,
-      microphoneGranted: microphone ?? _state.microphoneGranted,
-      notificationsGranted:
-      notifications ?? _state.notificationsGranted,
+      storageGranted: storage,
+      cameraGranted: camera,
+      microphoneGranted: microphone,
+      notificationsGranted: notifications,
+      storagePermanentlyDenied: storagePermanentlyDenied,
+      cameraPermanentlyDenied: cameraPermanentlyDenied,
+      microphonePermanentlyDenied: microphonePermanentlyDenied,
+      notificationsPermanentlyDenied:
+      notificationsPermanentlyDenied,
     );
     notifyListeners();
   }

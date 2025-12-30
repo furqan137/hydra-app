@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import 'preferences_controller.dart';
 import 'preferences_state.dart';
 
@@ -44,14 +45,17 @@ class _PreferencesView extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
+                    // ================= START PAGE =================
                     _sectionTitle('Start page'),
                     _startPageSelector(controller, state),
                     const SizedBox(height: 28),
 
+                    // ================= THEME =================
                     _sectionTitle('Theme'),
                     _themeSelector(controller, state),
                     const SizedBox(height: 28),
 
+                    // ================= STORAGE =================
                     _sectionTitle('Storage'),
                     _storageBar(state),
                   ],
@@ -84,7 +88,7 @@ class _PreferencesView extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          const Icon(Icons.more_vert, color: Colors.white),
+          const SizedBox(width: 40),
         ],
       ),
     );
@@ -147,7 +151,8 @@ class _PreferencesView extends StatelessWidget {
 
   // ================= STORAGE =================
   Widget _storageBar(PreferencesState state) {
-    final percent = state.storageUsed / state.storageTotal;
+    final percent =
+    (state.storageUsed / state.storageTotal).clamp(0.0, 1.0);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +180,7 @@ class _PreferencesView extends StatelessWidget {
     );
   }
 
-  // ================= REUSABLE =================
+  // ================= REUSABLE TILE =================
   Widget _selectTile({
     required IconData icon,
     required String label,
@@ -227,6 +232,7 @@ class _PreferencesView extends StatelessWidget {
     );
   }
 
+  // ================= SECTION TITLE =================
   Widget _sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),

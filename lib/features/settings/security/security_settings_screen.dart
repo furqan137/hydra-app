@@ -45,9 +45,9 @@ class _SecuritySettingsView extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    _sectionTitle('Security Settings'),
+                    // ================= SECURITY =================
+                    _sectionTitle('Security'),
 
-                    /// CHANGE PASSWORD
                     _navTile(
                       icon: Icons.key,
                       title: 'Change Password',
@@ -55,25 +55,28 @@ class _SecuritySettingsView extends StatelessWidget {
                           controller.openChangePassword(context),
                     ),
 
-                    /// BIOMETRIC (SYNCED WITH CONTROLLER)
                     _toggleTile(
                       icon: Icons.fingerprint,
-                      title: 'Enable biometric unlock',
-                      subtitle: 'Use biometrics for faster access.',
+                      title: 'Biometric unlock',
+                      subtitle:
+                      'Use fingerprint or face unlock for faster access',
                       value: state.biometricEnabled,
                       onChanged: (value) async {
-                        await controller.toggleBiometric(value, context);
+                        await controller.toggleBiometric(
+                          value,
+                          context,
+                        );
                       },
                     ),
 
                     const SizedBox(height: 28),
 
+                    // ================= AUTO LOCK =================
                     _sectionTitle('Auto-lock timeout'),
 
                     _radioTile(
                       label: 'Immediately',
-                      selected:
-                      state.autoLockTimeout ==
+                      selected: state.autoLockTimeout ==
                           AutoLockTimeout.immediate,
                       onTap: () => controller.setAutoLockTimeout(
                         AutoLockTimeout.immediate,
@@ -81,9 +84,8 @@ class _SecuritySettingsView extends StatelessWidget {
                     ),
 
                     _radioTile(
-                      label: '1 min',
-                      selected:
-                      state.autoLockTimeout ==
+                      label: 'After 1 minute',
+                      selected: state.autoLockTimeout ==
                           AutoLockTimeout.oneMinute,
                       onTap: () => controller.setAutoLockTimeout(
                         AutoLockTimeout.oneMinute,
@@ -91,9 +93,8 @@ class _SecuritySettingsView extends StatelessWidget {
                     ),
 
                     _radioTile(
-                      label: '5 min',
-                      selected:
-                      state.autoLockTimeout ==
+                      label: 'After 5 minutes',
+                      selected: state.autoLockTimeout ==
                           AutoLockTimeout.fiveMinutes,
                       onTap: () => controller.setAutoLockTimeout(
                         AutoLockTimeout.fiveMinutes,
@@ -101,9 +102,8 @@ class _SecuritySettingsView extends StatelessWidget {
                     ),
 
                     _radioTile(
-                      label: '10 min',
-                      selected:
-                      state.autoLockTimeout ==
+                      label: 'After 10 minutes',
+                      selected: state.autoLockTimeout ==
                           AutoLockTimeout.tenMinutes,
                       onTap: () => controller.setAutoLockTimeout(
                         AutoLockTimeout.tenMinutes,
@@ -128,12 +128,15 @@ class _SecuritySettingsView extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
+            icon: const Icon(
+              Icons.arrow_back,
+              color: Colors.white,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
           const Spacer(),
           const Text(
-            'Settings',
+            'Security',
             style: TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -261,8 +264,9 @@ class _SecuritySettingsView extends StatelessWidget {
           selected
               ? Icons.check_circle
               : Icons.radio_button_unchecked,
-          color:
-          selected ? const Color(0xFF0FB9B1) : Colors.white38,
+          color: selected
+              ? const Color(0xFF0FB9B1)
+              : Colors.white38,
         ),
         title: Text(
           label,

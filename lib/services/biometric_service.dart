@@ -33,11 +33,11 @@ class BiometricService {
   }
 
   /// 4️⃣ Authenticate user (fingerprint / face)
-  static Future<bool> authenticate({
+  static Future<void> authenticate({
     String reason = 'Authenticate to unlock Hidra',
   }) async {
     try {
-      return await _auth.authenticate(
+      final result = await _auth.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
           biometricOnly: true,
@@ -45,8 +45,11 @@ class BiometricService {
           useErrorDialogs: true,
         ),
       );
-    } catch (_) {
-      return false;
+      if (!result) {
+        throw Exception('Authentication failed or was cancelled.');
+      }
+    } catch (e) {
+      throw Exception(e.toString());
     }
   }
 

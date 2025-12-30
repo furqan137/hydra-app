@@ -4,18 +4,19 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../data/models/album_model.dart';
 import '../../data/models/album_media_file.dart';
-import '../../../data/models/vault_file.dart'; // ✅ REQUIRED
+import '../../../data/models/vault_file.dart'; //
 
 import 'widgets/album_media_tile.dart';
 import '../viewer/album_viewer/album_image_viewer.dart';
 import '../viewer/album_viewer/album_video_viewer.dart';
 import 'utils/album_video_thumbnail_helper.dart';
-
+import 'widgets/album_selection_bar.dart';
 import '../albums/pickers/vault_picker_screen.dart';
-
+import 'album_detail_controller.dart';
 
 class AlbumDetailScreen extends StatefulWidget {
   final Album album;
@@ -32,10 +33,30 @@ class AlbumDetailScreen extends StatefulWidget {
 class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   final List<AlbumMediaFile> mediaFiles = [];
 
-  final Set<int> _selectedIndexes = {};
+  final Set<AlbumMediaFile> _selected = {};
 
-  bool get isSelectionMode => _selectedIndexes.isNotEmpty;
-  int get selectedCount => _selectedIndexes.length;
+
+  bool get isSelectionMode => _selected.isNotEmpty;
+  int get selectedCount => _selected.length;
+
+  bool isSelected(AlbumMediaFile file) => _selected.contains(file);
+
+  void toggleSelection(AlbumMediaFile file) {
+    setState(() {
+      _selected.contains(file)
+          ? _selected.remove(file)
+          : _selected.add(file);
+    });
+  }
+
+  void clearSelection() {
+    setState(() => _selected.clear());
+  }
+
+
+  static const double _selectionBarHeight = 88;
+  static const double _topBarHeight = 88;
+
 
 
   // ================= INIT =================
@@ -88,36 +109,35 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
-
-  bool isSelected(int index) => _selectedIndexes.contains(index);
-
-  void toggleSelection(int index) {
-    setState(() {
-      if (_selectedIndexes.contains(index)) {
-        _selectedIndexes.remove(index);
+  Future<Directory?> _getExportDirectory() async {
+    try {
+      if (Platform.isAndroid) {
+        return await getDownloadsDirectory();
       } else {
-        _selectedIndexes.add(index);
+        return await getApplicationDocumentsDirectory();
       }
-    });
-  }
-
-  void clearSelection() {
-    setState(() {
-      _selectedIndexes.clear();
-    });
+    } catch (e) {
+      return null;
+    }
   }
 
   Future<void> _deleteSelected() async {
+    for (final media in _selected) {
+      try {
+        if (media.file.existsSync()) {
+          await media.file.delete();
+        }
+      } catch (_) {}
+    }
+
     setState(() {
-      final indexes = _selectedIndexes.toList()..sort((a, b) => b.compareTo(a));
-      for (final i in indexes) {
-        mediaFiles.removeAt(i);
-      }
-      _selectedIndexes.clear();
+      mediaFiles.removeWhere(_selected.contains);
+      _selected.clear();
     });
 
     await _saveMedia();
   }
+
 
 
   Future<void> _saveMedia() async {
@@ -140,6 +160,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   void _showAddOptions() {
     showModalBottomSheet(
+
       context: context,
       backgroundColor: const Color(0xFF101B2B),
       shape: const RoundedRectangleBorder(
@@ -338,136 +359,140 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
 // ================= UI =================
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF050B18),
 
-      body: Column(
+      body: Stack(
         children: [
-          // ================= TOP BAR =================
-          SafeArea(
-            bottom: false,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: const BoxDecoration(
-                color: Color(0xFF050B18),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white12,
-                    width: 0.5,
-                  ),
-                ),
-              ),
-              child: Row(
-                children: [
-                  // BACK BUTTON
-                  IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios_new,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-
-                  const SizedBox(width: 4),
-
-                  // TITLE
-                  Expanded(
-                    child: Text(
-                      widget.album.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
+          // ================= GRID CONTENT (NEVER MOVES) =================
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFF050B18),
+                  Color(0xFF0FB9B1),
                 ],
               ),
             ),
-          ),
-
-          // ================= CONTENT =================
-          Expanded(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF050B18),
-                    Color(0xFF0FB9B1),
-                  ],
+            child: mediaFiles.isEmpty
+                ? const Center(
+              child: Text(
+                'No media yet',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 18,
                 ),
               ),
-              child: mediaFiles.isEmpty
-                  ? const Center(
-                child: Text(
-                  'No media yet',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 18,
-                  ),
-                ),
-              )
-                  : GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate:
-                const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: mediaFiles.length,
-                itemBuilder: (_, i) {
-                  final media = mediaFiles[i];
-                  final selected = isSelected(i);
-
-                  return GestureDetector(
-                    onLongPress: () => toggleSelection(i),
-                    onTap: () {
-                      if (isSelectionMode) {
-                        toggleSelection(i);
-                      } else {
-                        _openViewer(media, i);
-                      }
-                    },
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        AlbumMediaTile(
-                          mediaFile: media,
-                          onTap: null, // handled above
-                        ),
-
-                        /// ✅ SELECTION OVERLAY
-                        if (selected)
-                          Container(
-                            color: Colors.black.withOpacity(0.35),
-                            child: const Center(
-                              child: Icon(
-                                Icons.check_circle,
-                                color: Color(0xFF0FB9B1),
-                                size: 36,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  );
-                },
+            )
+                : GridView.builder(
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                _topBarHeight + 16, // ✅ ONE fixed offset
+                16,
+                16,
               ),
+              gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+              ),
+              itemCount: mediaFiles.length,
+              itemBuilder: (_, i) {
+                final media = mediaFiles[i];
+                final selected = isSelected(media);
+
+                return AlbumMediaTile(
+                  mediaFile: media,
+                  isSelected: selected,
+                  onLongPress: () => toggleSelection(media),
+                  onTap: () {
+                    if (isSelectionMode) {
+                      toggleSelection(media);
+                    } else {
+                      _openViewer(media, i);
+                    }
+                  },
+                );
+              },
             ),
           ),
+
+          // ================= NORMAL TOP BAR =================
+          if (!isSelectionMode)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: _topBarHeight,
+              child: SafeArea(
+                bottom: false,
+                child: Container(
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF050B18),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.white12,
+                        width: 0.5,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          widget.album.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+          // ================= SELECTION BAR =================
+          if (isSelectionMode)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              height: _topBarHeight,
+              child: AlbumSelectionBar(
+                selectedCount: selectedCount,
+                onClear: clearSelection,
+                onDelete: _deleteSelected,
+                onExport: _exportSelected,
+              ),
+            ),
         ],
       ),
 
-      // ================= FAB =================
+
+      /// ================= FAB =================
       floatingActionButton: isSelectionMode
           ? null
           : FloatingActionButton.extended(
@@ -477,9 +502,22 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         label: const Text('Add'),
         onPressed: _showAddOptions,
       ),
-
     );
   }
+
+  Future<void> _exportSelected() async {
+    final dir = await _getExportDirectory();
+    if (dir == null) return;
+
+    for (final media in _selected) {
+      final name = media.file.uri.pathSegments.last;
+      await media.file.copy('${dir.path}/$name');
+    }
+
+    clearSelection();
+  }
+
+
 
   // ================= VIEWER =================
 
@@ -529,6 +567,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
 }
+
 
 bool _isVideo(File file) {
   final path = file.path.toLowerCase();
