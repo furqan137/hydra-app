@@ -6,68 +6,92 @@ import '../../../data/models/album_model.dart';
 import 'albums_controller.dart';
 
 class AlbumsState extends ChangeNotifier {
+  static const String _albumsKey = 'albums';
+  static const String _viewTypeKey = 'albums_view_type';
+
   List<Album> _albums = [];
   AlbumViewType _viewType = AlbumViewType.list;
 
-  List<Album> get albums => _albums;
+  List<Album> get albums => List.unmodifiable(_albums);
   AlbumViewType get viewType => _viewType;
+
+  bool _initialized = false;
 
   AlbumsState() {
     _init();
   }
 
+  // ================= INIT =================
+
   Future<void> _init() async {
     await _loadAlbums();
     await _loadViewType();
+    _initialized = true;
+    notifyListeners();
   }
 
   // ================= LOAD / SAVE =================
 
   Future<void> _loadAlbums() async {
     final prefs = await SharedPreferences.getInstance();
-    final albumsJson = prefs.getString('albums');
+    final raw = prefs.getString(_albumsKey);
 
-    if (albumsJson == null) {
+    if (raw == null || raw.isEmpty) {
       _albums = [];
-      notifyListeners();
       return;
     }
 
-    final List decoded = jsonDecode(albumsJson);
-    _albums = decoded.map((e) => Album.fromJson(e)).toList();
-    notifyListeners();
+    try {
+      final List decoded = jsonDecode(raw);
+      _albums = decoded.map((e) => Album.fromJson(e)).toList();
+    } catch (e) {
+      debugPrint('❌ Albums decode error: $e');
+      _albums = [];
+    }
   }
 
   Future<void> _saveAlbums() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
-      'albums',
+      _albumsKey,
       jsonEncode(_albums.map((e) => e.toJson()).toList()),
     );
   }
 
-  // 🔥 FIX — CALLED AFTER RESTORE
+  // ================= RESTORE SUPPORT (🔥 FIXED) =================
+
+  /// 🔥 MUST be called after backup restore
   Future<void> reloadFromStorage() async {
+    debugPrint('🔄 Albums reloadFromStorage');
+
+    // 1️⃣ Clear memory first (forces UI rebuild)
+    _albums = [];
+    notifyListeners();
+
+    // 2️⃣ Reload from SharedPreferences
     await _loadAlbums();
+
+    // 3️⃣ Notify again (final repaint)
+    notifyListeners();
   }
 
   // ================= VIEW MODE =================
 
   Future<void> _loadViewType() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString('albums_view_type');
+    final stored = prefs.getString(_viewTypeKey);
+
     if (stored == null) return;
 
     _viewType = AlbumViewType.values.firstWhere(
           (e) => e.name == stored,
       orElse: () => AlbumViewType.list,
     );
-    notifyListeners();
   }
 
   Future<void> _saveViewType() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('albums_view_type', _viewType.name);
+    await prefs.setString(_viewTypeKey, _viewType.name);
   }
 
   // ================= ALBUM ACTIONS =================
@@ -84,6 +108,15 @@ class AlbumsState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateAlbum(Album updated) {
+    final index = _albums.indexWhere((a) => a.id == updated.id);
+    if (index == -1) return;
+
+    _albums[index] = updated;
+    _saveAlbums();
+    notifyListeners();
+  }
+
   void removeAlbum(String albumId) {
     _albums.removeWhere((a) => a.id == albumId);
     _saveAlbums();
@@ -96,4 +129,17 @@ class AlbumsState extends ChangeNotifier {
     _saveViewType();
     notifyListeners();
   }
+
+  // ================= HELPERS =================
+
+  Album? getAlbumById(String id) {
+    try {
+      return _albums.firstWhere((a) => a.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool get isReady => _initialized;
 }
+

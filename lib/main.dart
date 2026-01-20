@@ -6,13 +6,32 @@ import 'features/splash/splash_screen.dart';
 import 'features/settings/hide_app/fake_dialer_screen.dart';
 import 'features/home/main_shell.dart';
 
+import 'core/navigation/app_navigator.dart';
+
 import 'features/settings/preferences/preferences_controller.dart';
 import 'features/settings/preferences/preferences_state.dart';
-import './core/theme/app_theme.dart'; // ✅ IMPORTANT
+
+import 'features/vault/vault_controller.dart';
+import 'features/albums/albums_state.dart';
+
+import 'core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const HidraApp());
+
+  runApp(
+    MultiProvider(
+      providers: [
+        /// ================= GLOBAL STATE =================
+        ChangeNotifierProvider(create: (_) => PreferencesController()),
+
+        /// ================= DATA STATE =================
+        ChangeNotifierProvider(create: (_) => VaultController()),
+        ChangeNotifierProvider(create: (_) => AlbumsState()),
+      ],
+      child: const HidraApp(),
+    ),
+  );
 }
 
 class HidraApp extends StatelessWidget {
@@ -20,24 +39,28 @@ class HidraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => PreferencesController(),
-      child: Consumer<PreferencesController>(
-        builder: (context, prefs, _) {
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
+    return Consumer<PreferencesController>(
+      builder: (context, prefs, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
 
-            // ================= THEME (FIXED & CORRECT) =================
-            themeMode: _mapTheme(prefs.state.theme),
-            theme: AppThemes.light,      // ✅ CLEAN LIGHT MODE
-            darkTheme: AppThemes.dark,   // ✅ YOUR EXISTING DARK MODE
+          /// 🔥 GLOBAL NAVIGATION (dialogs, restore, errors)
+          navigatorKey: appNavigatorKey,
 
-            // ================= ENTRY =================
-            home: const _StartupGate(),
-            onGenerateRoute: _routes,
-          );
-        },
-      ),
+          // ================= THEME =================
+          /// ✅ FIX: system theme truly follows OS
+          themeMode: prefs.state.theme == AppTheme.system
+              ? ThemeMode.system
+              : _mapTheme(prefs.state.theme),
+
+          theme: AppThemes.light,
+          darkTheme: AppThemes.dark,
+
+          // ================= ENTRY =================
+          home: const _StartupGate(),
+          onGenerateRoute: _routes,
+        );
+      },
     );
   }
 
@@ -82,15 +105,13 @@ class _StartupGate extends StatelessWidget {
         if (!snapshot.hasData) {
           return const Scaffold(
             backgroundColor: Colors.black,
-            body: Center(
-              child: CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
         final isHidden = snapshot.data!;
 
-        // 🔒 HIDDEN → FAKE DIALER
+        // 🔒 HIDDEN MODE → FAKE DIALER
         if (isHidden) {
           return const FakeDialerScreen();
         }

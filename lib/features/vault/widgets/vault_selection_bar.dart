@@ -16,6 +16,8 @@ class VaultSelectionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<VaultController>();
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     if (!controller.isSelectionMode) {
       return const SizedBox.shrink();
@@ -33,15 +35,18 @@ class VaultSelectionBar extends StatelessWidget {
                 height: 64,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.45),
+                  // ✅ THEME-AWARE BACKGROUND
+                  color: theme.brightness == Brightness.dark
+                      ? colors.surface.withOpacity(0.45)
+                      : colors.surfaceVariant.withOpacity(0.9),
                   borderRadius: BorderRadius.circular(22),
                 ),
                 child: Row(
                   children: [
                     Text(
                       'Selected • ${controller.selectedCount}',
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: colors.onSurface,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
@@ -50,20 +55,20 @@ class VaultSelectionBar extends StatelessWidget {
 
                     /// MOVE
                     _action(
+                      context,
                       icon: Icons.folder,
                       label: 'Move',
                       onTap: () async {
                         final albumId =
                         await _showAlbumPicker(context);
                         if (albumId == null) return;
-
                         await controller.moveSelectedToAlbum(albumId);
                       },
                     ),
 
                     /// EXPORT
-                    /// EXPORT
                     _action(
+                      context,
                       icon: Icons.upload,
                       label: 'Export',
                       onTap: () async {
@@ -80,21 +85,22 @@ class VaultSelectionBar extends StatelessWidget {
 
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Files exported successfully'),
-                              backgroundColor: Colors.teal,
+                            SnackBar(
+                              content:
+                              const Text('Files exported successfully'),
+                              backgroundColor: colors.primary,
                             ),
                           );
                         }
                       },
                     ),
 
-
                     /// DELETE
                     _action(
+                      context,
                       icon: Icons.delete,
                       label: 'Delete',
-                      color: Colors.redAccent,
+                      color: colors.error,
                       onTap: () async {
                         final ok = await _confirmDelete(context);
                         if (!ok) return;
@@ -109,26 +115,26 @@ class VaultSelectionBar extends StatelessWidget {
         ),
 
         /// 🔹 BOTTOM INFO TEXT
-        const Align(
+        Align(
           alignment: Alignment.bottomCenter,
           child: Padding(
-            padding: EdgeInsets.only(bottom: 96),
+            padding: const EdgeInsets.only(bottom: 96),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   'Encrypting files securely...',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: colors.onSurface,
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 6),
+                const SizedBox(height: 6),
                 Text(
                   'Import photos or videos.',
                   style: TextStyle(
-                    color: Colors.white60,
+                    color: colors.onSurface.withOpacity(0.6),
                     fontSize: 14,
                   ),
                 ),
@@ -142,12 +148,15 @@ class VaultSelectionBar extends StatelessWidget {
 
   // ================= ACTION BUTTON =================
 
-  Widget _action({
-    required IconData icon,
-    required String label,
-    Color color = Colors.white,
-    required VoidCallback onTap,
-  }) {
+  Widget _action(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        Color? color,
+        required VoidCallback onTap,
+      }) {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.only(left: 12),
       child: InkWell(
@@ -158,11 +167,17 @@ class VaultSelectionBar extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, color: color),
+              Icon(
+                icon,
+                color: color ?? colors.onSurface,
+              ),
               const SizedBox(height: 4),
               Text(
                 label,
-                style: TextStyle(color: color, fontSize: 12),
+                style: TextStyle(
+                  color: color ?? colors.onSurface,
+                  fontSize: 12,
+                ),
               ),
             ],
           ),
@@ -171,19 +186,12 @@ class VaultSelectionBar extends StatelessWidget {
     );
   }
 
-  // ================= EXPORT DIRECTORY (FIXED) =================
-
-  Future<Directory?> _getExportDirectory() async {
-    if (Platform.isAndroid) {
-      return await getDownloadsDirectory();
-    }
-    // iOS fallback
-    return await getApplicationDocumentsDirectory();
-  }
-
   // ================= ALBUM PICKER =================
 
   Future<String?> _showAlbumPicker(BuildContext context) async {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString('albums');
     if (raw == null) return null;
@@ -193,7 +201,7 @@ class VaultSelectionBar extends StatelessWidget {
 
     return showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF101B2B),
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -211,7 +219,9 @@ class VaultSelectionBar extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
+                  color: theme.brightness == Brightness.dark
+                      ? colors.surface.withOpacity(0.08)
+                      : colors.surfaceVariant,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: Row(
@@ -230,10 +240,11 @@ class VaultSelectionBar extends StatelessWidget {
                           : Container(
                         width: 56,
                         height: 56,
-                        color: Colors.white12,
-                        child: const Icon(
+                        color: colors.surfaceVariant,
+                        child: Icon(
                           Icons.folder,
-                          color: Colors.white70,
+                          color:
+                          colors.onSurface.withOpacity(0.6),
                           size: 28,
                         ),
                       ),
@@ -249,8 +260,8 @@ class VaultSelectionBar extends StatelessWidget {
                             album.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: colors.onSurface,
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -258,8 +269,9 @@ class VaultSelectionBar extends StatelessWidget {
                           const SizedBox(height: 4),
                           Text(
                             '${album.fileCount} items',
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color:
+                              colors.onSurface.withOpacity(0.6),
                               fontSize: 13,
                             ),
                           ),
@@ -267,9 +279,9 @@ class VaultSelectionBar extends StatelessWidget {
                       ),
                     ),
 
-                    const Icon(
+                    Icon(
                       Icons.chevron_right,
-                      color: Colors.white38,
+                      color: colors.onSurface.withOpacity(0.4),
                     ),
                   ],
                 ),
@@ -284,29 +296,34 @@ class VaultSelectionBar extends StatelessWidget {
   // ================= CONFIRM DELETE =================
 
   Future<bool> _confirmDelete(BuildContext context) async {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF101B2B),
-        title: const Text(
+        backgroundColor: colors.surface,
+        title: Text(
           'Delete files?',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: colors.onSurface),
         ),
-        content: const Text(
+        content: Text(
           'Selected files will be permanently deleted.',
-          style: TextStyle(color: Colors.white70),
+          style:
+          TextStyle(color: colors.onSurface.withOpacity(0.7)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text(
+            child: Text(
               'Cancel',
-              style: TextStyle(color: Colors.white70),
+              style: TextStyle(color: colors.onSurface),
             ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.redAccent,
+              backgroundColor: colors.error,
+              foregroundColor: colors.onError,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Delete'),

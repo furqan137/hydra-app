@@ -159,10 +159,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   // ================= ADD OPTIONS =================
 
   void _showAddOptions() {
-    showModalBottomSheet(
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
 
+    showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101B2B),
+      backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -175,6 +178,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
               _optionTile(
                 icon: Icons.add_photo_alternate,
                 title: 'Import from phone',
+                color: colors.primary,
                 onTap: () {
                   Navigator.pop(context);
                   _importFromPhone();
@@ -184,6 +188,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
               _optionTile(
                 icon: Icons.lock,
                 title: 'Select from Vault',
+                color: colors.primary,
                 onTap: () async {
                   Navigator.pop(context);
                   await _pickFromVault();
@@ -196,70 +201,27 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     );
   }
 
-  Widget _albumTopBar(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFF050B18).withOpacity(0.95),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.35),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
-          children: [
-            // BACK BUTTON (FORCED WHITE)
-            IconButton(
-              icon: const Icon(
-                Icons.arrow_back_ios_new,
-                color: Colors.white,
-                size: 20,
-              ),
-              onPressed: () => Navigator.pop(context),
-            ),
-
-            const SizedBox(width: 8),
-
-            // ALBUM NAME
-            Expanded(
-              child: Text(
-                widget.album.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-
   Widget _optionTile({
     required IconData icon,
     required String title,
+    required Color color,
     required VoidCallback onTap,
   }) {
+    final colors = Theme.of(context).colorScheme;
+
     return ListTile(
-      leading: Icon(icon, color: const Color(0xFF0FB9B1)),
+      leading: Icon(icon, color: color),
       title: Text(
         title,
-        style: const TextStyle(color: Colors.white, fontSize: 16),
+        style: TextStyle(
+          color: colors.onSurface,
+          fontSize: 16,
+        ),
       ),
       onTap: onTap,
     );
   }
+
 
   // ================= IMPORT FROM PHONE =================
 
@@ -362,29 +324,39 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF050B18),
+      backgroundColor:
+      isDark ? colors.surface : colors.background,
 
       body: Stack(
         children: [
-          // ================= GRID CONTENT (NEVER MOVES) =================
+          // ================= GRID CONTENT =================
           Container(
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFF050B18),
-                  Color(0xFF0FB9B1),
+                colors: isDark
+                    ? [
+                  const Color(0xFF050B18),
+                  colors.primary,
+                ]
+                    : [
+                  colors.background,
+                  colors.surfaceVariant,
                 ],
               ),
             ),
             child: mediaFiles.isEmpty
-                ? const Center(
+                ? Center(
               child: Text(
                 'No media yet',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: colors.onSurface.withOpacity(0.6),
                   fontSize: 18,
                 ),
               ),
@@ -392,7 +364,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 : GridView.builder(
               padding: const EdgeInsets.fromLTRB(
                 16,
-                _topBarHeight + 16, // ✅ ONE fixed offset
+                _topBarHeight + 16,
                 16,
                 16,
               ),
@@ -435,11 +407,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 child: Container(
                   padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF050B18),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? colors.surface.withOpacity(0.95)
+                        : colors.surfaceVariant,
                     border: Border(
                       bottom: BorderSide(
-                        color: Colors.white12,
+                        color: colors.onSurface.withOpacity(0.12),
                         width: 0.5,
                       ),
                     ),
@@ -447,9 +421,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   child: Row(
                     children: [
                       IconButton(
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_back_ios_new,
-                          color: Colors.white,
+                          color: colors.onSurface,
                           size: 20,
                         ),
                         onPressed: () => Navigator.pop(context),
@@ -460,8 +434,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                           widget.album.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: colors.onSurface,
                             fontSize: 18,
                             fontWeight: FontWeight.w600,
                             letterSpacing: 0.3,
@@ -491,19 +465,20 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         ],
       ),
 
-
-      /// ================= FAB =================
+      // ================= FAB =================
       floatingActionButton: isSelectionMode
           ? null
           : FloatingActionButton.extended(
         heroTag: 'album_detail_fab',
-        backgroundColor: const Color(0xFF0FB9B1),
+        backgroundColor: colors.primary,
+        foregroundColor: colors.onPrimary,
         icon: const Icon(Icons.add),
         label: const Text('Add'),
         onPressed: _showAddOptions,
       ),
     );
   }
+
 
   Future<void> _exportSelected() async {
     final dir = await _getExportDirectory();

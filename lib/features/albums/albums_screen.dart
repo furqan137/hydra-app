@@ -8,7 +8,6 @@ import 'widgets/album_card.dart';
 import 'widgets/create_album_dialog.dart';
 import 'widgets/albums_top_bar.dart';
 import '../../../data/models/album_model.dart';
-
 import 'widgets/album_grid_card.dart';
 
 class AlbumsScreen extends StatelessWidget {
@@ -16,10 +15,8 @@ class AlbumsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AlbumsState(),
-      child: const _AlbumsScreenBody(),
-    );
+    /// ✅ USE GLOBAL AlbumsState
+    return const _AlbumsScreenBody();
   }
 }
 
@@ -31,7 +28,7 @@ class _AlbumsScreenBody extends StatefulWidget {
 }
 
 class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
-  late final AlbumsController controller;
+  late AlbumsController controller;
   String _searchQuery = '';
 
   @override
@@ -56,6 +53,9 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Consumer<AlbumsState>(
       builder: (context, state, _) {
         final List<Album> albums = _searchQuery.isEmpty
@@ -65,15 +65,18 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
         return Scaffold(
           backgroundColor: Colors.transparent,
 
+          /// FAB uses theme color
           floatingActionButton: albums.isNotEmpty
               ? FloatingActionButton(
-            backgroundColor: const Color(0xFF0FB9B1),
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
             onPressed: _showCreateAlbumDialog,
-            child: const Icon(Icons.add, color: Colors.white),
+            child: const Icon(Icons.add),
           )
               : null,
 
           body: Container(
+            /// ❗ KEEP YOUR BACKGROUND (NOT REMOVED)
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -87,7 +90,7 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
             child: SafeArea(
               child: Column(
                 children: [
-                  /// ✅ TOP BAR (INLINE SEARCH)
+                  /// TOP BAR (kept as-is, theme applied inside widget)
                   AlbumsTopBar(
                     onSearchChanged: (value) {
                       setState(() => _searchQuery = value);
@@ -97,10 +100,10 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
                     onCreateAlbum: _showCreateAlbumDialog,
                   ),
 
-                  /// ================= CONTENT =================
+                  /// CONTENT
                   Expanded(
                     child: albums.isEmpty
-                        ? _emptyState()
+                        ? _emptyState(theme)
                         : state.viewType == AlbumViewType.list
                         ? _listView(albums)
                         : _gridView(albums),
@@ -139,7 +142,7 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
         crossAxisCount: 2,
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
-        childAspectRatio: 0.72, // ✅ FIXED RATIO
+        childAspectRatio: 0.72,
       ),
       itemCount: albums.length,
       itemBuilder: (context, index) {
@@ -154,7 +157,6 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
     );
   }
 
-
   // ================= OPEN =================
 
   void _openAlbum(Album album) {
@@ -168,79 +170,37 @@ class _AlbumsScreenBodyState extends State<_AlbumsScreenBody> {
 
   // ================= EMPTY =================
 
-  Widget _emptyState() {
+  Widget _emptyState(ThemeData theme) {
+    final colorScheme = theme.colorScheme;
+
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text(
+          Text(
             'No albums yet',
-            style: TextStyle(color: Colors.white, fontSize: 20),
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: colorScheme.onBackground,
+            ),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
+            onPressed: _showCreateAlbumDialog,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0FB9B1),
+              backgroundColor: colorScheme.primary,
+              foregroundColor: colorScheme.onPrimary,
               padding:
               const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(32),
               ),
             ),
-            onPressed: _showCreateAlbumDialog,
             child: const Text(
               'Create Album',
               style: TextStyle(fontSize: 18),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ================= SEARCH =================
-
-class AlbumSearchDelegate extends SearchDelegate {
-  final AlbumsController controller;
-
-  AlbumSearchDelegate(this.controller);
-
-  @override
-  List<Widget>? buildActions(BuildContext context) {
-    return [
-      IconButton(
-        icon: const Icon(Icons.clear),
-        onPressed: () => query = '',
-      ),
-    ];
-  }
-
-  @override
-  Widget? buildLeading(BuildContext context) {
-    return IconButton(
-      icon: const Icon(Icons.arrow_back),
-      onPressed: () => close(context, null),
-    );
-  }
-
-  @override
-  Widget buildResults(BuildContext context) {
-    final results = controller.searchAlbums(query);
-    return _buildList(results);
-  }
-
-  @override
-  Widget buildSuggestions(BuildContext context) {
-    final results = controller.searchAlbums(query);
-    return _buildList(results);
-  }
-
-  Widget _buildList(List<Album> albums) {
-    return ListView.builder(
-      itemCount: albums.length,
-      itemBuilder: (_, i) => ListTile(
-        title: Text(albums[i].name),
       ),
     );
   }

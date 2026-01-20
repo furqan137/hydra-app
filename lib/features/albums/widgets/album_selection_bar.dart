@@ -20,6 +20,10 @@ class AlbumSelectionBar extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
     return Positioned(
       top: 0,
       left: 0,
@@ -27,61 +31,104 @@ class AlbumSelectionBar extends StatelessWidget {
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(26),
             child: Container(
-              height: 64,
+              height: 72, // ✅ refined height
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.55),
-                borderRadius: BorderRadius.circular(22),
+                color: isDark
+                    ? colors.surface.withOpacity(0.85)
+                    : colors.surfaceVariant.withOpacity(0.95),
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(
+                      isDark ? 0.35 : 0.18,
+                    ),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  /// ❌ CLEAR SELECTION
-                  IconButton(
-                    icon: const Icon(
-                      Icons.close,
-                      color: Colors.white,
-                    ),
-                    onPressed: onClear,
+                  /// ❌ CLEAR
+                  _iconButton(
+                    context,
+                    icon: Icons.close,
+                    onTap: onClear,
+                    tooltip: 'Clear selection',
                   ),
 
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 12),
 
                   /// 📌 SELECTED COUNT
                   Text(
                     'Selected • $selectedCount',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.onSurface,
                     ),
                   ),
 
                   const Spacer(),
 
                   /// ⬆️ EXPORT
-                  IconButton(
-                    icon: const Icon(
-                      Icons.upload,
-                      color: Colors.white,
-                    ),
-                    onPressed: onExport,
+                  _iconButton(
+                    context,
+                    icon: Icons.upload,
+                    onTap: onExport,
                     tooltip: 'Export',
                   ),
 
+                  const SizedBox(width: 6),
+
                   /// 🗑 DELETE
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete,
-                      color: Colors.redAccent,
-                    ),
-                    onPressed: onDelete,
+                  _iconButton(
+                    context,
+                    icon: Icons.delete,
+                    color: colors.error,
+                    onTap: onDelete,
                     tooltip: 'Delete',
                   ),
                 ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================= ICON BUTTON =================
+
+  Widget _iconButton(
+      BuildContext context, {
+        required IconData icon,
+        required VoidCallback onTap,
+        required String tooltip,
+        Color? color,
+      }) {
+    final colors = Theme.of(context).colorScheme;
+
+    return SizedBox(
+      width: 44,
+      height: 44,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Tooltip(
+            message: tooltip,
+            child: Center(
+              child: Icon(
+                icon,
+                size: 26,
+                color: color ?? colors.onSurface,
               ),
             ),
           ),

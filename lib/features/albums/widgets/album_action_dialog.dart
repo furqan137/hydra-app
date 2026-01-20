@@ -14,28 +14,33 @@ class AlbumActionDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return AlertDialog(
-      backgroundColor: const Color(0xFF101B2B),
+      backgroundColor: colors.surface, // ✅ THEME AWARE
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      title: const Text(
+      title: Text(
         'Add files to album',
-        style: TextStyle(color: Colors.white),
+        style: theme.textTheme.titleMedium,
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           _actionButton(
+            context: context,
             icon: Icons.lock,
             label: 'Add from Vault',
             onTap: () {
-              Navigator.of(context).pop(); // ONLY close dialog
-              onAddFromVault();            // navigation handled outside
+              Navigator.of(context).pop();
+              onAddFromVault();
             },
           ),
           const SizedBox(height: 12),
           _actionButton(
+            context: context,
             icon: Icons.add_photo_alternate,
             label: 'Import Files',
             onTap: () {
@@ -49,9 +54,11 @@ class AlbumActionDialog extends StatelessWidget {
               Navigator.of(context).pop();
               onSkip();
             },
-            child: const Text(
+            child: Text(
               'Skip for now',
-              style: TextStyle(color: Colors.white70),
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colors.onSurface.withOpacity(0.7),
+              ),
             ),
           ),
         ],
@@ -60,19 +67,27 @@ class AlbumActionDialog extends StatelessWidget {
   }
 
   Widget _actionButton({
+    required BuildContext context,
     required IconData icon,
     required String label,
     required VoidCallback onTap,
   }) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF0FB9B1),
-        minimumSize: const Size(double.infinity, 48),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return SizedBox(
+      width: double.infinity,
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon),
+        label: Text(label),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colors.primary, // ✅ FROM THEME
+          foregroundColor: colors.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
       ),
     );

@@ -30,20 +30,21 @@ class AlbumsController {
     loadAlbums();
   }
 
-  // ================= LOAD / SAVE =================
+  // ================= LOAD =================
 
   Future<void> loadAlbums() async {
     final prefs = await SharedPreferences.getInstance();
-    final jsonStr = prefs.getString(_albumsKey);
+    final raw = prefs.getString(_albumsKey);
 
-    if (jsonStr == null) {
+    if (raw == null || raw.isEmpty) {
       state.setAlbums([]);
       return;
     }
 
     try {
-      final List decoded = jsonDecode(jsonStr);
-      final albums = decoded.map((e) => Album.fromJson(e)).toList();
+      final List decoded = jsonDecode(raw);
+      final albums =
+      decoded.map<Album>((e) => Album.fromJson(e)).toList();
       state.setAlbums(albums);
     } catch (e) {
       debugPrint('❌ Album load error: $e');
@@ -51,17 +52,15 @@ class AlbumsController {
     }
   }
 
-  Future<void> _saveAlbums() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _albumsKey,
-      jsonEncode(state.albums.map((a) => a.toJson()).toList()),
-    );
-  }
-
-  /// 🔥 CALL THIS AFTER BACKUP RESTORE
+  /// 🔥 CALLED AFTER BACKUP RESTORE
   Future<void> reloadAfterRestore() async {
     await loadAlbums();
+  }
+
+  /// 🔥 UI-SAFE FORCE RELOAD
+  Future<void> forceReload() async {
+    await reloadAfterRestore();
+    state.notifyListeners();
   }
 
   // ================= CREATE =================
@@ -79,7 +78,6 @@ class AlbumsController {
     );
 
     state.addAlbum(album);
-    _saveAlbums();
   }
 
   // ================= SEARCH =================
@@ -114,7 +112,6 @@ class AlbumsController {
     }
 
     state.setAlbums(albums);
-    _saveAlbums();
   }
 
   // ================= VIEW MODE =================
@@ -135,7 +132,10 @@ class AlbumsController {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text('Rename Album', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Rename Album',
+          style: TextStyle(color: Colors.white),
+        ),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -153,7 +153,8 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child:
+            const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -167,7 +168,6 @@ class AlbumsController {
               if (newName.isEmpty) return;
 
               _replaceAlbum(album.copyWith(name: newName));
-              _saveAlbums();
               Navigator.pop(context);
             },
             child: const Text('Save'),
@@ -187,7 +187,10 @@ class AlbumsController {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
         ),
-        title: const Text('Delete Album', style: TextStyle(color: Colors.white)),
+        title: const Text(
+          'Delete Album',
+          style: TextStyle(color: Colors.white),
+        ),
         content: Text(
           'Are you sure you want to delete "${album.name}"?',
           style: const TextStyle(color: Colors.white70),
@@ -195,7 +198,8 @@ class AlbumsController {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+            child:
+            const Text('Cancel', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -208,7 +212,6 @@ class AlbumsController {
               final updated = [...state.albums]
                 ..removeWhere((a) => a.id == album.id);
               state.setAlbums(updated);
-              _saveAlbums();
               Navigator.pop(context);
             },
             child: const Text('Delete'),
