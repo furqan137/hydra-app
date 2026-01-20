@@ -27,66 +27,42 @@ class LocalBackupService {
 
     final tempDir = await getTemporaryDirectory();
     final backupRoot = Directory(
-      p.join(
-        tempDir.path,
-        'hidra_backup_${DateTime.now().millisecondsSinceEpoch}',
-      ),
-    );
-    backupRoot.createSync(recursive: true);
+      p.join(tempDir.path, 'hidra_backup_${DateTime.now().millisecondsSinceEpoch}'),
+    )..createSync(recursive: true);
 
     await FileHelper.ensureStructure();
-    final vaultDir = await FileHelper.vaultDir;
-    final albumsDir = await FileHelper.albumsDir;
 
-    _copyDirectory(vaultDir, Directory(p.join(backupRoot.path, 'Vault')));
-    _copyDirectory(albumsDir, Directory(p.join(backupRoot.path, 'Albums')));
+    _copyDirectory(await FileHelper.vaultDir, Directory('${backupRoot.path}/Vault'));
+    _copyDirectory(await FileHelper.albumsDir, Directory('${backupRoot.path}/Albums'));
 
-    // ================= METADATA =================
+    final metadataDir = Directory('${backupRoot.path}/metadata')..createSync();
 
-    final metadataDir = Directory(p.join(backupRoot.path, 'metadata'));
-    metadataDir.createSync();
-
-    // Vault metadata (USED for restore)
+    // Vault metadata
     final vaultFiles = await VaultRepository.getAllVaultFiles();
-    File(p.join(metadataDir.path, 'vault_index.json')).writeAsStringSync(
-      jsonEncode(vaultFiles.map((e) => e.toJson()).toList()),
-    );
+    File('${metadataDir.path}/vault_index.json')
+        .writeAsStringSync(jsonEncode(vaultFiles.map((e) => e.toJson()).toList()));
 
-    // Albums list
+    // Albums
     final albums = await AlbumRepository.getAllAlbums();
-    File(p.join(metadataDir.path, 'albums.json')).writeAsStringSync(
-      jsonEncode(albums.map((e) => e.toJson()).toList()),
-    );
+    File('${metadataDir.path}/albums.json')
+        .writeAsStringSync(jsonEncode(albums.map((e) => e.toJson()).toList()));
 
     // Album media
     final albumMediaMap = await AlbumRepository.getAllAlbumMediaMap();
-    for (final entry in albumMediaMap.entries) {
-      File(
-        p.join(metadataDir.path, 'album_media_${entry.key}.json'),
-      ).writeAsStringSync(
-        jsonEncode(entry.value.map((e) => e.toJson()).toList()),
-      );
+    for (final e in albumMediaMap.entries) {
+      File('${metadataDir.path}/album_media_${e.key}.json')
+          .writeAsStringSync(jsonEncode(e.value.map((f) => f.toJson()).toList()));
     }
 
-    // ================= ZIP =================
-
     final zipFile = File('${backupRoot.path}.zip');
-    await ZipService.createZip(
-      sourceDirs: [backupRoot],
-      outputFile: zipFile,
-    );
-
-    // ================= ENCRYPT =================
+    await ZipService.createZip(sourceDirs: [backupRoot], outputFile: zipFile);
 
     final encrypted = await _encryptZip(zipFile, password);
     zipFile.deleteSync();
 
-    final finalPath = p.join(
-      selectedDir,
-      '${p.basename(backupRoot.path)}.hidra',
+    final result = await encrypted.copy(
+      p.join(selectedDir, '${p.basename(backupRoot.path)}.hidra'),
     );
-
-    final result = await encrypted.copy(finalPath);
 
     encrypted.deleteSync();
     backupRoot.deleteSync(recursive: true);
@@ -94,116 +70,171 @@ class LocalBackupService {
     return result;
   }
 
-  // ================= RESTORE BACKUP =================
+  // ================= RESTORE BACKUP (MERGE SAFE) =================
 
   static Future<void> restoreBackup({
     required File backupFile,
     required String password,
   }) async {
-    // 1️⃣ DECRYPT (DO NOT TOUCH)
     final zipFile = await _decryptBackup(backupFile, password);
 
-    // 2️⃣ EXTRACT
     final tempDir = await getTemporaryDirectory();
     final extractDir = Directory(
-      p.join(
-        tempDir.path,
-        'restore_${DateTime.now().millisecondsSinceEpoch}',
-      ),
-    );
-    extractDir.createSync(recursive: true);
+      '${tempDir.path}/restore_${DateTime.now().millisecondsSinceEpoch}',
+    )..createSync(recursive: true);
 
-    await ZipService.extractZip(
-      zipFile: zipFile,
-      targetDir: extractDir,
-    );
+    await ZipService.extractZip(zipFile: zipFile, targetDir: extractDir);
     zipFile.deleteSync();
 
-    // 3️⃣ RESTORE FILES
+    final backupRoot = extractDir
+        .listSync()
+        .whereType<Directory>()
+        .first;
+
     await FileHelper.ensureStructure();
 
-    _copyDirectory(
-      Directory(p.join(extractDir.path, 'Vault')),
+    // 🔹 MERGE FILES (NO DELETE)
+    _mergeDirectory(
+      Directory('${backupRoot.path}/Vault'),
       await FileHelper.vaultDir,
-      overwrite: true,
     );
 
-    _copyDirectory(
-      Directory(p.join(extractDir.path, 'Albums')),
+    _mergeDirectory(
+      Directory('${backupRoot.path}/Albums'),
       await FileHelper.albumsDir,
-      overwrite: true,
     );
 
-    // 4️⃣ RESTORE METADATA (🔥 FIXED)
-    final metadataDir = Directory(p.join(extractDir.path, 'metadata'));
-    if (metadataDir.existsSync()) {
-      final prefs = await SharedPreferences.getInstance();
-
-      for (final file in metadataDir.listSync().whereType<File>()) {
-        final name = p.basename(file.path);
-        final json = file.readAsStringSync();
-
-        if (name == 'vault_index.json') {
-          // 🔥 THIS FIXES VAULT RESTORE
-          await prefs.setString('vault_files', json);
-        } else if (name == 'albums.json') {
-          await prefs.setString('albums', json);
-        } else if (name.startsWith('album_media_')) {
-          final key = name.replaceAll('.json', '');
-          await prefs.setString(key, json);
-        }
-      }
-    }
+    // 🔹 MERGE METADATA
+    await _mergeMetadata(Directory('${backupRoot.path}/metadata'));
 
     extractDir.deleteSync(recursive: true);
   }
 
-  // ================= HELPERS =================
+  // ================= METADATA MERGE =================
 
-  static void _copyDirectory(
-      Directory source,
-      Directory target, {
-        bool overwrite = false,
-      }) {
-    if (!source.existsSync()) return;
+  static Future<void> _mergeMetadata(Directory metadataDir) async {
+    if (!metadataDir.existsSync()) return;
 
-    if (overwrite && target.existsSync()) {
-      target.deleteSync(recursive: true);
+    final prefs = await SharedPreferences.getInstance();
+
+    // Vault
+    final vaultFile = File('${metadataDir.path}/vault_index.json');
+    if (vaultFile.existsSync()) {
+      final old = prefs.getString('vault_files');
+      final restored = jsonDecode(vaultFile.readAsStringSync()) as List;
+
+      final merged = <Map<String, dynamic>>[];
+
+      if (old != null) {
+        merged.addAll(List<Map<String, dynamic>>.from(jsonDecode(old)));
+      }
+
+      for (final e in restored) {
+        if (!merged.any((m) => m['file'] == e['file'])) {
+          merged.add(Map<String, dynamic>.from(e));
+        }
+      }
+
+      await prefs.setString('vault_files', jsonEncode(merged));
     }
 
+    // Albums
+    final albumsFile = File('${metadataDir.path}/albums.json');
+    if (albumsFile.existsSync()) {
+      final old = prefs.getString('albums');
+      final restored = jsonDecode(albumsFile.readAsStringSync()) as List;
+
+      final merged = <Map<String, dynamic>>[];
+
+      if (old != null) {
+        merged.addAll(List<Map<String, dynamic>>.from(jsonDecode(old)));
+      }
+
+      for (final e in restored) {
+        if (!merged.any((m) => m['id'] == e['id'])) {
+          merged.add(Map<String, dynamic>.from(e));
+        }
+      }
+
+      await prefs.setString('albums', jsonEncode(merged));
+    }
+
+    // Album media
+    for (final file in metadataDir.listSync().whereType<File>()) {
+      if (!file.path.contains('album_media_')) continue;
+
+      final key = p.basename(file.path).replaceAll('.json', '');
+      final restored = jsonDecode(file.readAsStringSync()) as List;
+
+      final old = prefs.getString(key);
+      final merged = <Map<String, dynamic>>[];
+
+      if (old != null) {
+        merged.addAll(List<Map<String, dynamic>>.from(jsonDecode(old)));
+      }
+
+      for (final e in restored) {
+        if (!merged.any((m) => m['file'] == e['file'])) {
+          merged.add(Map<String, dynamic>.from(e));
+        }
+      }
+
+      await prefs.setString(key, jsonEncode(merged));
+    }
+  }
+
+  // ================= DIRECTORY MERGE =================
+
+  static void _mergeDirectory(Directory source, Directory target) {
+    if (!source.existsSync()) return;
     target.createSync(recursive: true);
 
     for (final entity in source.listSync()) {
+      final newPath = '${target.path}/${p.basename(entity.path)}';
+
       if (entity is File) {
-        entity.copySync(p.join(target.path, p.basename(entity.path)));
+        if (!File(newPath).existsSync()) {
+          entity.copySync(newPath);
+        }
       } else if (entity is Directory) {
-        _copyDirectory(
-          entity,
-          Directory(p.join(target.path, p.basename(entity.path))),
-        );
+        _mergeDirectory(entity, Directory(newPath));
       }
     }
   }
 
-  // ================= ENCRYPT =================
+  // ================= DIRECTORY COPY (FULL COPY) =================
+  static void _copyDirectory(Directory source, Directory target) {
+    if (!source.existsSync()) return;
+
+    target.createSync(recursive: true);
+
+    for (final entity in source.listSync()) {
+      final newPath = p.join(target.path, p.basename(entity.path));
+
+      if (entity is File) {
+        entity.copySync(newPath);
+      } else if (entity is Directory) {
+        _copyDirectory(entity, Directory(newPath));
+      }
+    }
+  }
+
+
+  // ================= ENCRYPT / DECRYPT =================
 
   static Future<File> _encryptZip(File zipFile, String password) async {
-    final zipBytes = await zipFile.readAsBytes();
+    final data = [...utf8.encode(_magic), ...await zipFile.readAsBytes()];
     final key = sha256.convert(utf8.encode(password)).bytes;
-
-    final data = [...utf8.encode(_magic), ...zipBytes];
 
     final encrypted = List<int>.generate(
       data.length,
           (i) => data[i] ^ key[i % key.length],
     );
 
-    final outFile = File('${zipFile.path}.hidra');
-    await outFile.writeAsBytes(encrypted, flush: true);
-    return outFile;
+    final out = File('${zipFile.path}.hidra');
+    await out.writeAsBytes(encrypted, flush: true);
+    return out;
   }
-
-  // ================= DECRYPT =================
 
   static Future<File> _decryptBackup(File encrypted, String password) async {
     final bytes = await encrypted.readAsBytes();
@@ -224,14 +255,8 @@ class LocalBackupService {
     final zipBytes = decrypted.sublist(magic.length);
     final tempDir = await getTemporaryDirectory();
 
-    final zipFile = File(
-      p.join(
-        tempDir.path,
-        'restore_${DateTime.now().millisecondsSinceEpoch}.zip',
-      ),
-    );
-
-    await zipFile.writeAsBytes(zipBytes, flush: true);
-    return zipFile;
+    final zip = File('${tempDir.path}/restore_${DateTime.now().millisecondsSinceEpoch}.zip');
+    await zip.writeAsBytes(zipBytes, flush: true);
+    return zip;
   }
 }

@@ -13,8 +13,17 @@ class VaultTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
+    return Container(
       height: _barHeight,
+      // ✅ FIX: give bar a background
+      decoration: BoxDecoration(
+        color: theme.brightness == Brightness.dark
+            ? colors.surface.withOpacity(0.08)
+            : colors.surfaceVariant.withOpacity(0.85),
+      ),
       child: controller.isSelectionMode
           ? const SizedBox()
           : _normalBar(context),
@@ -24,24 +33,26 @@ class VaultTopBar extends StatelessWidget {
   // ================= NORMAL TOP BAR =================
 
   Widget _normalBar(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
       child: Row(
         children: [
-          /// 🟢 TITLE (LEFT)
-          const Text(
+          /// 🟢 TITLE
+          Text(
             'Hidra',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
-              color: Colors.white,
+              color: colors.onSurface, // ✅ always visible
             ),
           ),
 
           const Spacer(),
 
-          /// 🔽 FILTER / SORT ICON (RIGHT)
+          /// 🔽 SORT ICON
           _SortButton(controller: controller),
         ],
       ),
@@ -49,7 +60,7 @@ class VaultTopBar extends StatelessWidget {
   }
 }
 
-// ================= SORT BUTTON (ANCHOR) =================
+// ================= SORT BUTTON =================
 
 class _SortButton extends StatelessWidget {
   final VaultController controller;
@@ -58,15 +69,17 @@ class _SortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
     final key = GlobalKey();
 
     return IconButton(
       key: key,
       splashRadius: 22,
-      icon: const Icon(
+      icon: Icon(
         Icons.sort,
-        color: Colors.white70,
         size: 24,
+        color: colors.onSurface.withOpacity(0.75), // ✅ visible in light
       ),
       onPressed: () => _openSortPopup(context, key),
     );
@@ -84,13 +97,10 @@ class _SortButton extends StatelessWidget {
       builder: (_) {
         return Stack(
           children: [
-            // Tap outside to close
             GestureDetector(
               onTap: () => Navigator.pop(context),
               child: Container(color: Colors.transparent),
             ),
-
-            // Popup anchored BELOW the icon
             Positioned(
               top: position.dy + size.height + 8,
               right: 12,
@@ -103,7 +113,7 @@ class _SortButton extends StatelessWidget {
   }
 }
 
-// ================= SORT POPUP PANEL =================
+// ================= SORT POPUP =================
 
 class _SortPopup extends StatelessWidget {
   final VaultController controller;
@@ -112,57 +122,60 @@ class _SortPopup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return Material(
       color: Colors.transparent,
       child: Container(
         width: 260,
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF101B2B),
+          // ✅ FIX: better background for light mode
+          color: theme.brightness == Brightness.dark
+              ? colors.surface
+              : colors.surfaceVariant,
           borderRadius: BorderRadius.circular(18),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Colors.black54,
+              color: Colors.black.withOpacity(
+                theme.brightness == Brightness.dark ? 0.45 : 0.18,
+              ),
               blurRadius: 18,
-              offset: Offset(0, 8),
+              offset: const Offset(0, 8),
             ),
           ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            _item(context,
+                icon: Icons.sort_by_alpha,
+                title: 'Name (A–Z)',
+                onTap: () => _apply(context, VaultSortType.nameAsc)),
+            _item(context,
+                icon: Icons.sort_by_alpha,
+                title: 'Name (Z–A)',
+                onTap: () => _apply(context, VaultSortType.nameDesc)),
+            _item(context,
+                icon: Icons.storage,
+                title: 'Size (Small → Large)',
+                onTap: () => _apply(context, VaultSortType.sizeAsc)),
+            _item(context,
+                icon: Icons.storage,
+                title: 'Size (Large → Small)',
+                onTap: () => _apply(context, VaultSortType.sizeDesc)),
+            _item(context,
+                icon: Icons.schedule,
+                title: 'Newest First',
+                onTap: () => _apply(context, VaultSortType.dateNewest)),
+            _item(context,
+                icon: Icons.history,
+                title: 'Oldest First',
+                onTap: () => _apply(context, VaultSortType.dateOldest)),
+            Divider(color: colors.onSurface.withOpacity(0.15)),
             _item(
-              icon: Icons.sort_by_alpha,
-              title: 'Name (A–Z)',
-              onTap: () => _apply(context, VaultSortType.nameAsc),
-            ),
-            _item(
-              icon: Icons.sort_by_alpha,
-              title: 'Name (Z–A)',
-              onTap: () => _apply(context, VaultSortType.nameDesc),
-            ),
-            _item(
-              icon: Icons.storage,
-              title: 'Size (Small → Large)',
-              onTap: () => _apply(context, VaultSortType.sizeAsc),
-            ),
-            _item(
-              icon: Icons.storage,
-              title: 'Size (Large → Small)',
-              onTap: () => _apply(context, VaultSortType.sizeDesc),
-            ),
-            _item(
-              icon: Icons.schedule,
-              title: 'Newest First',
-              onTap: () => _apply(context, VaultSortType.dateNewest),
-            ),
-            _item(
-              icon: Icons.history,
-              title: 'Oldest First',
-              onTap: () => _apply(context, VaultSortType.dateOldest),
-            ),
-            const Divider(color: Colors.white24),
-            _item(
+              context,
               icon: Icons.restart_alt,
               title: 'Restore Default',
               highlight: true,
@@ -174,24 +187,31 @@ class _SortPopup extends StatelessWidget {
     );
   }
 
-  Widget _item({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool highlight = false,
-  }) {
+  Widget _item(
+      BuildContext context, {
+        required IconData icon,
+        required String title,
+        required VoidCallback onTap,
+        bool highlight = false,
+      }) {
+    final colors = Theme.of(context).colorScheme;
+
     return ListTile(
       dense: true,
       onTap: onTap,
       leading: Icon(
         icon,
         size: 20,
-        color: highlight ? const Color(0xFF0FB9B1) : Colors.white70,
+        color: highlight
+            ? colors.primary
+            : colors.onSurface.withOpacity(0.75),
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: highlight ? Colors.white : Colors.white70,
+          color: highlight
+              ? colors.onSurface
+              : colors.onSurface.withOpacity(0.75),
           fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
         ),
       ),

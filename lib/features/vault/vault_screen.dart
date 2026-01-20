@@ -19,6 +19,35 @@ class VaultScreen extends StatefulWidget {
 
 class _VaultScreenState extends State<VaultScreen> {
   bool hasSkippedEmpty = false;
+  VaultController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    /// 🔥 LISTEN TO VAULT CHANGES (THE REAL FIX)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final controller = context.read<VaultController>();
+      _controller = controller;
+
+      controller.addListener(_onVaultChanged);
+    });
+  }
+
+  void _onVaultChanged() {
+    /// 🔥 WHEN FILES ARRIVE → EXIT EMPTY STATE
+    if (_controller!.files.isNotEmpty && hasSkippedEmpty) {
+      setState(() {
+        hasSkippedEmpty = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.removeListener(_onVaultChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +57,6 @@ class _VaultScreenState extends State<VaultScreen> {
       extendBody: true,
       backgroundColor: Colors.transparent,
 
-      /// FAB (hidden while selecting files)
       floatingActionButton:
       (!controller.isSelectionMode &&
           (hasSkippedEmpty || controller.files.isNotEmpty))
@@ -61,23 +89,20 @@ class _VaultScreenState extends State<VaultScreen> {
   // ================= BODY =================
 
   Widget _buildBody(BuildContext context, VaultController controller) {
-    /// First-time empty state
     if (!hasSkippedEmpty && controller.isEmpty) {
       return EmptyVaultView(
         onImport: () => _openImportSheet(context),
-        onSkip: () => setState(() => hasSkippedEmpty = true),
+        onSkip: () {
+          setState(() => hasSkippedEmpty = true);
+        },
       );
     }
 
     return Stack(
       children: [
-        /// MAIN CONTENT
         Column(
           children: [
-            /// TOP BAR
             VaultTopBar(controller: controller),
-
-            /// GRID (extra bottom padding for selection bar)
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -90,8 +115,6 @@ class _VaultScreenState extends State<VaultScreen> {
             ),
           ],
         ),
-
-        /// ✅ SELECTION BAR (Move / Export / Delete)
         const Align(
           alignment: Alignment.bottomCenter,
           child: VaultSelectionBar(),
@@ -125,7 +148,6 @@ class _VaultScreenState extends State<VaultScreen> {
           Image.asset(
             'assets/icons/vault_empty.png',
             width: size.width * 0.48,
-            fit: BoxFit.contain,
           ),
           const SizedBox(height: 16),
           const Text(
