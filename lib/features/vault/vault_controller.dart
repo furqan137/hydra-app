@@ -2,14 +2,26 @@ import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // ✅ REQUIRED
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:provider/provider.dart';
+import '../albums/albums_state.dart';
+
+import '../../core/navigation/app_navigator.dart';
 
 import '../../data/models/vault_file.dart';
 import '../../core/utils/file_helper.dart';
 import '../../services/file_delete_service.dart';
 import '../../services/file_export_service.dart';
 import '../../services/file_move_service.dart';
+
+import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
+import '../../services/local_backup_service.dart';
+
+
 
 enum VaultSortType {
   nameAsc,
@@ -27,26 +39,164 @@ class VaultController extends ChangeNotifier {
   static const String _dbKey = 'vault_files';
 
   final List<VaultFile> _files = [];
-  final Set<VaultFile> _selected = {};
+
+  /// 🔥 PATH-based selection (SAFE after restore)
+  final Set<String> _selectedPaths = {};
 
   bool _isImporting = false;
 
   // ================= GETTERS =================
 
   List<VaultFile> get files => List.unmodifiable(_files);
-  List<VaultFile> get selectedFiles => List.unmodifiable(_selected);
+
+  List<VaultFile> get selectedFiles =>
+      _files.where((f) => _selectedPaths.contains(f.file.path)).toList();
 
   bool get isEmpty => _files.isEmpty;
   bool get isImporting => _isImporting;
-  bool get isSelectionMode => _selected.isNotEmpty;
+  bool get isSelectionMode => _selectedPaths.isNotEmpty;
 
-  int get selectedCount => _selected.length;
+  int get selectedCount => _selectedPaths.length;
   int get totalFiles => _files.length;
 
   // ================= INIT =================
 
   VaultController() {
     loadFiles();
+  }
+
+  // ================= LOAD =================
+
+  Future<void> loadFiles() async {
+    _files.clear();
+    _selectedPaths.clear();
+
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dbKey);
+
+    if (raw == null || raw.isEmpty) {
+      notifyListeners();
+      return;
+    }
+
+    try {
+      final List decoded = jsonDecode(raw);
+
+      /// 🔥 IMPORTANT
+      /// Do NOT filter existsSync here
+      /// Restore extracts files async
+      final restored =
+      decoded.map<VaultFile>((e) => VaultFile.fromJson(e)).toList();
+
+      _files.addAll(restored);
+    } catch (e) {
+      debugPrint('❌ Vault load error: $e');
+    }
+
+    notifyListeners();
+  }
+
+
+  // ================= RESTORE BACKUP =================
+
+  Future<void> restoreBackup() async {
+    if (_isImporting) return;
+
+    _isImporting = true;
+    notifyListeners();
+
+    try {
+      // 1️⃣ Pick ANY file (Android-safe)
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+        allowMultiple: false,
+      );
+
+      // User cancelled picker
+      if (result == null || result.files.isEmpty) return;
+
+      final path = result.files.single.path;
+      if (path == null) return;
+
+      // 2️⃣ Validate extension MANUALLY
+      if (!path.toLowerCase().endsWith('.hidra')) {
+        throw Exception('Invalid backup file. Please select a .hidra backup.');
+      }
+
+      final backupFile = File(path);
+      if (!backupFile.existsSync()) {
+        throw Exception('Backup file not found.');
+      }
+
+      // 3️⃣ Ask password
+      final password = await _askPassword();
+
+      // 4️⃣ Restore backup
+      await LocalBackupService.restoreBackup(
+        backupFile: backupFile,
+        password: password,
+      );
+
+// 5️⃣ Reload VAULT
+      await reloadAfterRestore();
+
+// 6️⃣ Reload ALBUMS (✅ CORRECT METHOD NAME)
+      Provider.of<AlbumsState>(
+        navContext,
+        listen: false,
+      ).reloadFromStorage();
+
+
+
+    } catch (e) {
+      debugPrint('❌ Restore failed: $e');
+
+      await showDialog(
+        context: navContext,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Restore Failed'),
+          content: Text(
+            e.toString().replaceFirst('Exception: ', ''),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(navContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      _isImporting = false;
+      notifyListeners();
+    }
+  }
+
+
+  /// 🔥 CALLED AFTER BACKUP RESTORE
+  Future<void> reloadAfterRestore() async {
+    await loadFiles();
+
+    /// Delay cleanup to allow filesystem to settle
+    Future.delayed(const Duration(milliseconds: 300), cleanupMissingFiles);
+  }
+
+  /// 🔥 UI SAFE FORCE RELOAD
+  Future<void> forceReload() async {
+    debugPrint('🔄 Vault forceReload');
+    await reloadAfterRestore();
+  }
+
+  /// 🔥 CLEANUP (OPTIONAL BUT IMPORTANT)
+  Future<void> cleanupMissingFiles() async {
+    final before = _files.length;
+    _files.removeWhere((f) => !f.file.existsSync());
+
+    if (_files.length != before) {
+      await saveFiles();
+      notifyListeners();
+    }
   }
 
   // ================= IMPORT =================
@@ -136,34 +286,37 @@ class VaultController extends ChangeNotifier {
 
   // ================= SELECTION =================
 
-  bool isSelected(VaultFile file) => _selected.contains(file);
+  bool isSelected(VaultFile file) =>
+      _selectedPaths.contains(file.file.path);
 
   void toggleSelection(VaultFile file) {
-    _selected.contains(file) ? _selected.remove(file) : _selected.add(file);
+    _selectedPaths.contains(file.file.path)
+        ? _selectedPaths.remove(file.file.path)
+        : _selectedPaths.add(file.file.path);
     notifyListeners();
   }
 
   void clearSelection() {
-    _selected.clear();
+    _selectedPaths.clear();
     notifyListeners();
   }
 
   void selectAll() {
-    _selected
+    _selectedPaths
       ..clear()
-      ..addAll(_files);
+      ..addAll(_files.map((f) => f.file.path));
     notifyListeners();
   }
 
   // ================= DELETE =================
 
   Future<void> deleteSelected() async {
-    if (_selected.isEmpty) return;
+    if (_selectedPaths.isEmpty) return;
 
-    await FileDeleteService.deleteVaultFiles(_selected.toList());
+    await FileDeleteService.deleteVaultFiles(selectedFiles);
 
-    _files.removeWhere(_selected.contains);
-    _selected.clear();
+    _files.removeWhere((f) => _selectedPaths.contains(f.file.path));
+    _selectedPaths.clear();
 
     await saveFiles();
     notifyListeners();
@@ -177,7 +330,7 @@ class VaultController extends ChangeNotifier {
     } catch (_) {}
 
     _files.removeWhere((f) => f.file.path == file.file.path);
-    _selected.remove(file);
+    _selectedPaths.remove(file.file.path);
 
     await saveFiles();
     notifyListeners();
@@ -186,10 +339,10 @@ class VaultController extends ChangeNotifier {
   // ================= EXPORT / MOVE =================
 
   Future<void> exportSelected(Directory targetDir) async {
-    if (_selected.isEmpty) return;
+    if (_selectedPaths.isEmpty) return;
 
     await FileExportService.exportVaultFiles(
-      _selected.toList(),
+      selectedFiles,
       targetDir: targetDir,
     );
 
@@ -197,19 +350,66 @@ class VaultController extends ChangeNotifier {
   }
 
   Future<void> moveSelectedToAlbum(String albumId) async {
-    if (_selected.isEmpty) return;
+    if (_selectedPaths.isEmpty) return;
 
     await FileMoveService.moveVaultFilesToAlbum(
-      files: _selected.toList(),
+      files: selectedFiles,
       albumId: albumId,
     );
 
-    _files.removeWhere(_selected.contains);
-    _selected.clear();
+    _files.removeWhere((f) => _selectedPaths.contains(f.file.path));
+    _selectedPaths.clear();
 
     await saveFiles();
     notifyListeners();
   }
+
+  Future<String> _askPassword() async {
+    final controller = TextEditingController();
+    String password = '';
+
+    await showDialog(
+      context: navContext, // ✅ correct global context
+      barrierDismissible: false,
+      builder: (_) {
+        return AlertDialog(
+          title: const Text('Enter Backup Password'),
+          content: TextField(
+            controller: controller,
+            obscureText: true,
+            decoration: const InputDecoration(
+              hintText: 'Password',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(navContext);
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                password = controller.text.trim();
+                Navigator.pop(navContext);
+              },
+              child: const Text('Restore'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (password.isEmpty) {
+      throw Exception('Password required');
+    }
+
+    return password;
+  }
+
+
+
+
 
   // ================= STORAGE =================
 
@@ -220,46 +420,22 @@ class VaultController extends ChangeNotifier {
       jsonEncode(_files.map((f) => f.toJson()).toList()),
     );
   }
+}
 
-  /// 🔥 IMPORTANT: rebuild vault from disk (used after restore)
-  Future<void> loadFiles() async {
-    _files.clear();
+bool _isVideo(String name) {
+  final ext = name.toLowerCase();
+  return ext.endsWith('.mp4') ||
+      ext.endsWith('.mov') ||
+      ext.endsWith('.mkv');
+}
 
-    await FileHelper.ensureStructure();
-    final vaultDir = await FileHelper.vaultDir;
-
-    if (!vaultDir.existsSync()) {
-      notifyListeners();
-      return;
-    }
-
-    for (final entity in vaultDir.listSync()) {
-      if (entity is! File) continue;
-
-      final ext = entity.path.toLowerCase();
-      final type = ext.endsWith('.mp4') ||
-          ext.endsWith('.mkv') ||
-          ext.endsWith('.avi')
-          ? VaultFileType.video
-          : VaultFileType.image;
-
-      _files.add(
-        VaultFile(
-          file: entity,
-          type: type,
-          importedAt: entity.lastModifiedSync(),
-        ),
-      );
-    }
-
-    await saveFiles();
-    notifyListeners();
-  }
-
-  /// ✅ CALL THIS AFTER BACKUP RESTORE
-  Future<void> reloadAfterRestore() async {
-    final prefs = await SharedPreferences.getInstance();
-    prefs.remove(_dbKey);
-    await loadFiles();
-  }
+bool _isSupportedMedia(File file) {
+  final ext = p.extension(file.path).toLowerCase();
+  return ext == '.jpg' ||
+      ext == '.jpeg' ||
+      ext == '.png' ||
+      ext == '.webp' ||
+      ext == '.mp4' ||
+      ext == '.mov' ||
+      ext == '.mkv';
 }

@@ -9,10 +9,8 @@ class PreferencesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => PreferencesController(),
-      child: const _PreferencesView(),
-    );
+    // ✅ USE EXISTING CONTROLLER (FROM main.dart)
+    return const _PreferencesView();
   }
 }
 

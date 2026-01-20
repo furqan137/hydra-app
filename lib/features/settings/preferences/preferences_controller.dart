@@ -12,6 +12,9 @@ class PreferencesController extends ChangeNotifier {
   PreferencesState _state = const PreferencesState();
   PreferencesState get state => _state;
 
+  bool _initialized = false;
+  bool get isInitialized => _initialized;
+
   // ================= INIT =================
   PreferencesController() {
     _init();
@@ -20,25 +23,30 @@ class PreferencesController extends ChangeNotifier {
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
 
-    // Load start page
+    // 🔹 START PAGE
+    StartPage startPage = _state.startPage;
     final startIndex = prefs.getInt(_startPageKey);
-    final startPage = (startIndex != null &&
-        startIndex < StartPage.values.length)
-        ? StartPage.values[startIndex]
-        : _state.startPage;
+    if (startIndex != null &&
+        startIndex >= 0 &&
+        startIndex < StartPage.values.length) {
+      startPage = StartPage.values[startIndex];
+    }
 
-    // Load theme
+    // 🔹 THEME
+    AppTheme theme = _state.theme;
     final themeIndex = prefs.getInt(_themeKey);
-    final theme = (themeIndex != null &&
-        themeIndex < AppTheme.values.length)
-        ? AppTheme.values[themeIndex]
-        : _state.theme;
+    if (themeIndex != null &&
+        themeIndex >= 0 &&
+        themeIndex < AppTheme.values.length) {
+      theme = AppTheme.values[themeIndex];
+    }
 
     _state = _state.copyWith(
       startPage: startPage,
       theme: theme,
     );
 
+    _initialized = true;
     notifyListeners();
   }
 
@@ -64,5 +72,13 @@ class PreferencesController extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_themeKey, theme.index);
+  }
+
+  // ================= RESTORE SUPPORT =================
+  /// 🔥 Call this after backup restore
+  Future<void> reloadFromStorage() async {
+    _initialized = false;
+    notifyListeners();
+    await _init();
   }
 }

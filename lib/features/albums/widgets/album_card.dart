@@ -40,6 +40,14 @@ class _AlbumCardState extends State<AlbumCard> {
     setState(() => _fileCount = count);
   }
 
+  // ================= TEXT COLOR =================
+
+  Color _textColor(BuildContext context) {
+    return Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : Colors.black;
+  }
+
   // ================= COVER IMAGE =================
 
   Future<File?> _loadCover() async {
@@ -52,51 +60,45 @@ class _AlbumCardState extends State<AlbumCard> {
 
     final first = decoded.first;
     final String? path = first['path'];
-    final String type = first['type']; // 'image' or 'video'
+    final String type = first['type'];
 
     if (path == null) return null;
 
     final file = File(path);
     if (!file.existsSync()) return null;
 
-    // ✅ IMAGE → return directly
-    if (type == 'image') {
-      return file;
-    }
+    if (type == 'image') return file;
 
-    // ✅ VIDEO → use thumbnail
     if (type == 'video') {
       final String? thumbPath = first['thumbnailPath'];
-
-      // Thumbnail already exists
       if (thumbPath != null) {
         final thumbFile = File(thumbPath);
         if (thumbFile.existsSync()) return thumbFile;
       }
-
-      // Generate thumbnail if missing
-      final generated =
-      await AlbumVideoThumbnailHelper.generate(file);
-      return generated;
+      return await AlbumVideoThumbnailHelper.generate(file);
     }
 
     return null;
   }
-
 
   // ================= UI =================
 
   @override
   Widget build(BuildContext context) {
     final album = widget.album;
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
 
     return GestureDetector(
       onTap: widget.onTap,
       child: Container(
-        height: 108, // ✅ taller card like reference UI
+        height: 108,
         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
+          // ✅ FIX: NOT WHITE IN LIGHT MODE
+          color: theme.brightness == Brightness.dark
+              ? colors.surface.withOpacity(0.08)
+              : colors.surfaceVariant.withOpacity(0.65),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Stack(
@@ -124,10 +126,10 @@ class _AlbumCardState extends State<AlbumCard> {
                           }
 
                           return Container(
-                            color: Colors.black26,
-                            child: const Icon(
+                            color: colors.surfaceVariant,
+                            child: Icon(
                               Icons.folder,
-                              color: Color(0xFF0FB9B1),
+                              color: colors.primary,
                               size: 42,
                             ),
                           );
@@ -140,8 +142,8 @@ class _AlbumCardState extends State<AlbumCard> {
                 // ================= TEXT =================
                 Expanded(
                   child: Padding(
-                    padding:
-                    const EdgeInsets.symmetric(vertical: 18, horizontal: 6),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 18, horizontal: 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -150,10 +152,10 @@ class _AlbumCardState extends State<AlbumCard> {
                           album.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: theme.textTheme.titleMedium?.copyWith(
                             fontSize: 19,
                             fontWeight: FontWeight.w600,
+                            color: colors.onSurface,
                           ),
                         ),
                         const SizedBox(height: 6),
@@ -161,9 +163,8 @@ class _AlbumCardState extends State<AlbumCard> {
                           _fileCount == null
                               ? 'Loading…'
                               : '$_fileCount files',
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 14,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: colors.onSurface.withOpacity(0.7),
                           ),
                         ),
                       ],
@@ -172,51 +173,71 @@ class _AlbumCardState extends State<AlbumCard> {
                 ),
 
                 // ================= MENU =================
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert, color: Colors.white70),
-                  color: const Color(0xFF101B2B),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
+                Theme(
+                  data: theme.copyWith(
+                    popupMenuTheme: PopupMenuThemeData(
+                      color: colors.surface,
+                      textStyle: TextStyle(color: colors.onSurface),
+                    ),
                   ),
-                  onSelected: (value) => _handleMenu(context, value),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'rename',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 18),
-                          SizedBox(width: 8),
-                          Text('Rename'),
-                        ],
-                      ),
+                  child: PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: colors.onSurface.withOpacity(0.7),
                     ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete,
-                              size: 18, color: Colors.redAccent),
-                          SizedBox(width: 8),
-                          Text('Delete'),
-                        ],
-                      ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                  ],
+                    onSelected: (value) => _handleMenu(context, value),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'rename',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit,
+                                size: 18, color: colors.onSurface),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Rename',
+                              style:
+                              TextStyle(color: colors.onSurface),
+                            ),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            const Icon(Icons.delete,
+                                size: 18,
+                                color: Colors.redAccent),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Delete',
+                              style:
+                              TextStyle(color: colors.onSurface),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(width: 8),
               ],
             ),
 
-            // ================= LOCK OVERLAY =================
+            // ================= LOCK =================
             if (album.isPrivate)
-              const Positioned(
+              Positioned(
                 right: 14,
                 bottom: 14,
                 child: Icon(
                   Icons.lock,
                   size: 18,
-                  color: Colors.white70,
+                  color: colors.onSurface.withOpacity(0.6),
                 ),
               ),
           ],
@@ -275,24 +296,31 @@ class _AlbumCardState extends State<AlbumCard> {
   // ================= DIALOGS =================
 
   Widget _confirmDeleteDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final textColor = _textColor(context);
+
     return AlertDialog(
-      backgroundColor: const Color(0xFF101B2B),
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Delete Album', style: TextStyle(color: Colors.white)),
-      content: const Text(
+      title: Text(
+        'Delete Album',
+        style: theme.textTheme.titleMedium?.copyWith(color: textColor),
+      ),
+      content: Text(
         'Are you sure you want to delete this album?',
-        style: TextStyle(color: Colors.white70),
+        style: theme.textTheme.bodyMedium
+            ?.copyWith(color: textColor.withOpacity(0.8)),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          child: Text('Cancel', style: TextStyle(color: textColor)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0FB9B1),
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: colors.error,
+            foregroundColor: colors.onError,
           ),
           onPressed: () => Navigator.pop(context, true),
           child: const Text('Delete'),
@@ -305,33 +333,39 @@ class _AlbumCardState extends State<AlbumCard> {
       BuildContext context,
       TextEditingController controller,
       ) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final textColor = _textColor(context);
+
     return AlertDialog(
-      backgroundColor: const Color(0xFF101B2B),
+      backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: const Text('Rename Album', style: TextStyle(color: Colors.white)),
+      title: Text(
+        'Rename Album',
+        style: theme.textTheme.titleMedium?.copyWith(color: textColor),
+      ),
       content: TextField(
         controller: controller,
-        style: const TextStyle(color: Colors.white),
-        decoration: const InputDecoration(
+        style: TextStyle(color: textColor),
+        decoration: InputDecoration(
           hintText: 'Album name',
-          hintStyle: TextStyle(color: Colors.white54),
+          hintStyle: TextStyle(color: textColor.withOpacity(0.6)),
           filled: true,
-          fillColor: Color(0xFF192841),
+          fillColor: colors.surfaceVariant,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          child: Text('Cancel', style: TextStyle(color: textColor)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF0FB9B1),
-            shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: colors.primary,
+            foregroundColor: colors.onPrimary,
           ),
           onPressed: () =>
               Navigator.pop(context, controller.text.trim()),

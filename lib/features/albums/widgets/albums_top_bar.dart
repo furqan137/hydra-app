@@ -31,33 +31,46 @@ class _AlbumsTopBarState extends State<AlbumsTopBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final backgroundColor =
+    isDark ? const Color(0xFF050B18) : Colors.white;
+    final textColor =
+    isDark ? Colors.white : const Color(0xFF111827);
+    final iconColor =
+    isDark ? Colors.white : const Color(0xFF374151);
+
+    return Container(
+      color: backgroundColor, // ✅ EXPLICIT BACKGROUND
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          /// BACK (only in search mode)
           if (_isSearching)
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              icon: Icon(Icons.arrow_back, color: iconColor),
               onPressed: _closeSearch,
             ),
 
-          /// TITLE / SEARCH FIELD
           Expanded(
-            child: _isSearching ? _searchField() : _title(),
+            child: _isSearching
+                ? _searchField(
+              textColor: textColor,
+              hintColor: textColor.withOpacity(0.5),
+              iconColor: iconColor,
+            )
+                : _title(textColor),
           ),
 
-          /// SEARCH ICON
           if (!_isSearching)
             IconButton(
-              icon: const Icon(Icons.search, color: Colors.white),
+              icon: Icon(Icons.search, color: iconColor),
               onPressed: _openSearch,
             ),
 
-          /// MENU
           if (!_isSearching)
             IconButton(
-              icon: const Icon(Icons.more_vert, color: Colors.white),
+              icon: Icon(Icons.more_vert, color: iconColor),
               onPressed: () => _openMenu(context),
             ),
         ],
@@ -67,11 +80,11 @@ class _AlbumsTopBarState extends State<AlbumsTopBar> {
 
   // ================= UI =================
 
-  Widget _title() {
-    return const Text(
+  Widget _title(Color textColor) {
+    return Text(
       'Albums',
       style: TextStyle(
-        color: Colors.white,
+        color: textColor,
         fontSize: 22,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.4,
@@ -79,26 +92,37 @@ class _AlbumsTopBarState extends State<AlbumsTopBar> {
     );
   }
 
-  Widget _searchField() {
+  Widget _searchField({
+    required Color textColor,
+    required Color hintColor,
+    required Color iconColor,
+  }) {
     return TextField(
       controller: _searchController,
       autofocus: true,
-      style: const TextStyle(color: Colors.white),
+      style: TextStyle(
+        color: textColor,
+        fontSize: 16,
+      ),
       decoration: InputDecoration(
         hintText: 'Search albums…',
-        hintStyle: const TextStyle(color: Colors.white54),
+        hintStyle: TextStyle(color: hintColor),
         border: InputBorder.none,
         suffixIcon: _searchController.text.isNotEmpty
             ? IconButton(
-          icon: const Icon(Icons.clear, color: Colors.white70),
+          icon: Icon(Icons.clear, color: iconColor.withOpacity(0.7)),
           onPressed: () {
             _searchController.clear();
             widget.onSearchChanged('');
+            setState(() {});
           },
         )
             : null,
       ),
-      onChanged: widget.onSearchChanged,
+      onChanged: (v) {
+        widget.onSearchChanged(v);
+        setState(() {});
+      },
     );
   }
 
@@ -141,41 +165,34 @@ class _AlbumsMenuSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: const BoxDecoration(
-        color: Color(0xFF101B2B),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: colors.surface, // ✅ follows theme
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(28),
+        ),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _item(
-            context,
-            Icons.sort_by_alpha,
-            'Sort A–Z',
-                () => onSortChanged(AlbumSortType.nameAsc),
-          ),
-          _item(
-            context,
-            Icons.sort,
-            'Sort Z–A',
-                () => onSortChanged(AlbumSortType.nameDesc),
-          ),
-          const Divider(color: Colors.white24),
-          _item(
-            context,
-            Icons.view_list,
-            'List View',
-                () => onViewChanged(AlbumViewType.list),
-          ),
-          _item(
-            context,
-            Icons.grid_view,
-            'Grid View',
-                () => onViewChanged(AlbumViewType.grid),
-          ),
-          const Divider(color: Colors.white24),
+          _item(context, Icons.sort_by_alpha, 'Sort A–Z',
+                  () => onSortChanged(AlbumSortType.nameAsc)),
+          _item(context, Icons.sort, 'Sort Z–A',
+                  () => onSortChanged(AlbumSortType.nameDesc)),
+
+          Divider(color: colors.onSurface.withOpacity(0.12)),
+
+          _item(context, Icons.view_list, 'List View',
+                  () => onViewChanged(AlbumViewType.list)),
+          _item(context, Icons.grid_view, 'Grid View',
+                  () => onViewChanged(AlbumViewType.grid)),
+
+          Divider(color: colors.onSurface.withOpacity(0.12)),
+
           _item(
             context,
             Icons.add,
@@ -188,7 +205,6 @@ class _AlbumsMenuSheet extends StatelessWidget {
     );
   }
 
-  // ✅ CONTEXT IS NOW PASSED SAFELY
   Widget _item(
       BuildContext context,
       IconData icon,
@@ -196,23 +212,28 @@ class _AlbumsMenuSheet extends StatelessWidget {
       VoidCallback onTap, {
         bool highlight = false,
       }) {
+    final colors = Theme.of(context).colorScheme;
+
     return ListTile(
       onTap: () {
-        Navigator.pop(context); // ✅ NOW VALID
+        Navigator.pop(context);
         onTap();
       },
       leading: Icon(
         icon,
-        color: highlight ? const Color(0xFF0FB9B1) : Colors.white70,
+        color: highlight
+            ? colors.primary
+            : colors.onSurface.withOpacity(0.7),
       ),
       title: Text(
         title,
         style: TextStyle(
-          color: highlight ? Colors.white : Colors.white70,
+          color: highlight
+              ? colors.onSurface
+              : colors.onSurface.withOpacity(0.7),
           fontWeight: highlight ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
     );
   }
 }
-
